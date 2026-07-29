@@ -1,0 +1,37 @@
+{
+  "skill_name": "axum-tower",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "给这个 Rust 服务加一组 HTTP 中间件：请求日志、30 秒超时、1MB body 上限、允许跨域。",
+      "expected_output": "使用 tower ServiceBuilder 组合 TraceLayer / TimeoutLayer / RequestBodyLimitLayer / CorsLayer 的 Router.layer 代码，layer 顺序合理并说明执行方向（ServiceBuilder 自上而下 vs 链式 .layer 相反）。",
+      "assertions": [
+        "使用 ServiceBuilder 统一组栈而非逐个 .layer 混排",
+        "包含 TimeoutLayer(Duration::from_secs(30)) 与 RequestBodyLimitLayer(1MB)",
+        "提及或体现 middleware 的执行顺序语义（ServiceBuilder 自上而下）",
+        "CORS 若允许 credentials，未与通配 origin 同用（运行时 panic）"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "帮我写一个 axum handler：按 id 查用户返回 JSON，找不到时返回 404，body 里还要接收一个更新参数。",
+      "expected_output": "axum 0.8 语法：路由用 /users/{id}；handler 中消费 body 的 Json extractor 位于参数列表最后；Result<Json<T>, E> 错误传播，404 走统一错误类型。若处于 fusions 技术栈，状态注入遵 fusions skill 约定而非 State 直取 base mm。",
+      "assertions": [
+        "路由路径使用 {id} 语法而非 :id（axum 0.8 旧语法 panic）",
+        "Json body extractor 是 handler 最后一个参数（FromRequest 只能在末位）",
+        "错误路径返回 404 语义（not_found）而非 unwrap/panic",
+        "在 fusions 技术栈上下文中不使用 State 直取 base ModelManager（遵执行协议第 3 条）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "这个 axum 服务有个 SSE 推送接口，最近前端说收不到事件了，我们上周刚全局加了 gzip 压缩和 30 秒超时中间件，帮我看看。",
+      "expected_output": "定位到 CompressionLayer / TimeoutLayer 对流式响应的影响：压缩会缓冲流式 body（tower-http 对 text/event-stream 内置排除，需确认 Content-Type 正确）、整响应超时会掐断长连接；建议 SSE 路由单独挂载、排除这两个 layer 或用 predicate 排除。",
+      "assertions": [
+        "识别出压缩/超时中间件与 SSE 长流式响应的冲突",
+        "给出可操作的修复（单独路由挂载 / NotForContentType predicate / 确认 Content-Type）",
+        "未建议移除全站压缩这类过度修复作为唯一方案"
+      ]
+    }
+  ]
+}

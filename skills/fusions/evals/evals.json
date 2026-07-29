@@ -1,0 +1,56 @@
+{
+  "skill_name": "fusions",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "在 fusions 后端给一个新模块加 ConnectRPC service 并挂到 web server，handler 里要查库。",
+      "expected_output": "按 Core templates：service 为持 mm 的轻量 struct（pub fn new(mm)，不 derive Component），handler 从 Context::extensions 取请求级 scoped mm（应用自定义 helper），RPC 面经 AuthLayer/ContextValidationLayer 装配挂载。",
+      "assertions": [
+        "application service 不 derive Component，由 handler 每请求 inline 构造",
+        "handler 从 Context::extensions 取 scoped ModelManager，而非 State 直取 base mm",
+        "跨 service 调用（如出现）走 Sibling::new(self.mm.clone()) 而非全局组件查找"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "用 fusionsql 给 orders 表写一个带过滤和分页的列表查询，前端可以传排序字段。",
+      "expected_output": "Entity/Fields/FilterNodes 宏 + BMC base CRUD 范式的查询实现，分页走 fusionsql 内建 Page 参数；说明客户端 order_bys 默认按实体列集合校验（with_order_by_allowlist 仅为显式覆盖），不手写裸 SQL、不绕过 ModelManager。",
+      "assertions": [
+        "使用 fusionsql 宏派生（Fields/FilterNodes）而非手拼 SQL 字符串",
+        "查询经 BMC/ModelManager 通路（RLS session vars 生效），未出现 dbx.db() 裸连",
+        "分页使用 fusionsql 的 Page 参数结构",
+        "未建议为了客户端排序而手拼 ORDER BY，也未声称必须配 allowlist 才有校验（默认已按实体列集合校验）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "服务里的一个后台任务偶发 401：它以系统身份调另一个 bin 的 RPC，帮我查下该怎么配。",
+      "expected_output": "指向 Gotchas 中的出站 system-mode mint 语义：[fusion.security.pwd].secret_key 必须与对端解密方同值；缺失/不一致会 mint 出无效 JWE 导致 unauthenticated。",
+      "assertions": [
+        "定位到 [fusion.security.pwd] secret_key 的出站 mint 语义（而非仅入站 AuthLayer）",
+        "指出 secret_key 必须与被调方同值",
+        "给出配置落点（app.toml 对应段）而非笼统建议"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "帮我把这个 LLM 网关服务收个尾：启动后要能优雅停机，进程退出前把用量缓冲 flush 掉，另外把配置结构体打到日志里方便排障。",
+      "expected_output": "用 add_shutdown_hook 注册 flush（在 Application::await_shutdown 内执行）；WebServerBuilder 用 serve()（不是 build()）；提醒携密配置类型不能 derive Debug，api_key 字段需 <REDACTED> 脱敏输出。",
+      "assertions": [
+        "使用 add_shutdown_hook + Application::await_shutdown 承载 flush，而非自旋监听信号",
+        "服务启动使用 serve()，未使用已 deprecated 的 build()",
+        "对含 api_key/secret 的类型未使用 #[derive(Debug)]，日志输出做了脱敏处理"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "这个 RPC 方法我们这版先不做，直接返回个错误占位，客户端那边会自动重试吗？",
+      "expected_output": "用 DataError::not_implemented（system.not_implemented / Connect Unimplemented，501 语义）；明确它是永久失败、调用方不应重试；不要用 server_error 或 service_unavailable 占位（503 会被当作可重试）。",
+      "assertions": [
+        "使用 DataError::not_implemented 而非 server_error/service_unavailable 占位",
+        "说明 Unimplemented 是永久失败、客户端不应自动重试",
+        "未把未实现错误映射为 503/可重试语义"
+      ]
+    }
+  ]
+}

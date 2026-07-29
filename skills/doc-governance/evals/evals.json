@@ -1,0 +1,38 @@
+{
+  "skill_name": "doc-governance",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我审计一下 docs/ 里的术语漂移和重复定义，我担心几份设计文档对同一个字段口径不一致。",
+      "expected_output": "一份 audit-report：按 workflow.md 模板输出 Scope / Single Sources Of Truth / Conflicts / Duplicate Content / Terminology Drift / Broken Links / Recommended Fix Order，逐条带 文件:行号 与证据摘录；审计阶段不编辑任何文件。",
+      "assertions": [
+        "先读取了项目 overlay（doc-governance.overlay.md）或在缺失时要求调用方提供权威源",
+        "输出包含 Recommended Fix Order 段",
+        "每条发现带精确 文件:行号 定位",
+        "审计过程零文件编辑（git status 无新增改动）",
+        "运行了 scripts/check-links.py 并报告结果"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "把仓库文档里的旧字段名 org_id 统一收口成 facility_id，废弃映射要留痕，改完别有死链。",
+      "expected_output": "sync 阶段执行：建立 old→new 映射表（迁移映射表中保留旧名）、逐处分类处置、文件移动用 git mv、编辑后跑 check-links.py 零 broken，最后给出改动文件清单。",
+      "assertions": [
+        "废弃映射表中保留了 org_id → facility_id 行（旧术语未被从迁移表中抹掉）",
+        "现行规范正文中不再出现 org_id（迁移表/历史标注除外）",
+        "编辑完成后运行 check-links.py 且结果为 0 broken",
+        "输出点名了全部改动文件的相对路径"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "刚做完一轮文档收口，帮我写个 PR 描述，说清楚哪些是直接改内容、哪些只是改链接、哪些是归属调整。",
+      "expected_output": "按 summary 模板输出 change-summary：区分 direct content edits / reference-link cleanup / ownership changes 三类，点名唯一真实源与校验结果。",
+      "assertions": [
+        "输出显式区分 direct content edits / reference/link cleanup / ownership changes 三类",
+        "包含 Validation Result 段并交代 check-links.py 结果",
+        "关键改动文件以相对路径点名"
+      ]
+    }
+  ]
+}

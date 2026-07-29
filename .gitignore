@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# Node / npx skills 运行产物
+node_modules/

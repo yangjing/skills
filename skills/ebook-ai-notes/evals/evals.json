@@ -1,0 +1,43 @@
+{
+  "skill_name": "ebook-ai-notes",
+  "notes": "files 字段由使用者自行填写电子书路径（避免版权与体积问题）。建议用一本中文技术书 epub + 一本英文 pdf 做覆盖测试。",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "阅读并理解电子书：path/to/book.epub。总结本书主要内容，参考「微信读书」AI 大纲的方式将各章节主要内容写入到 notes/book-name/ 目录。",
+      "expected_output": "在 notes/<book>/ 下生成一个 README.md 总览 + 每个正文章节一份结构化笔记（epub 已解压或脚本解压）。README 含章节地图与全书核心观点；每章笔记含一句话精要、分节精要、关键术语表（中英对照）、金句观点。",
+      "files": ["path/to/book.epub"],
+      "assertions": [
+        "输出了 notes 目录，含 README.md 和至少与正文章节数量相等的 .md 笔记文件",
+        "README.md 包含全书主旨、章节地图（表格或列表）、核心观点",
+        "每个章节笔记包含「关键术语表」章节（中英对照）",
+        "每个章节笔记包含「金句/重要观点」章节，至少 3 条",
+        "笔记内容忠实于原书（术语、观点能在书中找到对应），未凭书名或通用知识编造",
+        "第一步骤使用了 inspect_source.py 脚本（uv run）探查源文件"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "精读这本 pdf：path/to/book.pdf，按章节生成中文读书笔记大纲。",
+      "expected_output": "先用 inspect_source.py 探查 pdf（拿到 TOC/页数/是否扫描件），再按章节生成笔记。若是文本型 pdf 用 PyMuPDF4LLM 提取；若提示 needs_ocr 则说明需 RapidOCR 兜底。",
+      "files": ["path/to/book.pdf"],
+      "assertions": [
+        "先运行 inspect_source.py 探查 pdf 结构",
+        "若 pdf 有内嵌书签(TOC)，按书签章节边界切分提取",
+        "若检测为扫描件(needs_ocr=true)，给出 RapidOCR 兜底建议而非默认 Tesseract",
+        "生成的笔记为中文（专有名词保留英文），结构与 epub 用例一致"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "我已经把一本 epub 解压在 path/to/extracted/ 目录了，帮我读完然后写个全书概览和每章要点。",
+      "expected_output": "脚本应识别为已解压 epub 目录（无需再解压），按 spine 顺序处理章节，生成 README + 逐章笔记。",
+      "files": ["path/to/extracted/"],
+      "assertions": [
+        "inspect_source.py 正确识别为已解压 epub 目录（不重复解压）",
+        "chapters 按 content.opf 的 spine 阅读顺序排列，而非文件名字母序",
+        "导航页（title/copyright/preface/about-*）被用于建立框架但不出现在逐章笔记中，逐章笔记只覆盖正文"
+      ]
+    }
+  ]
+}

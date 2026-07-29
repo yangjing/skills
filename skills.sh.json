@@ -1,0 +1,29 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Rust 后端",
+      "description": "Rust Web 服务与 Fusion 框架开发规范。",
+      "skills": [
+        "axum-tower",
+        "fusions"
+      ]
+    },
+    {
+      "title": "文档与笔记",
+      "description": "文档一致性治理与电子书读书笔记生成。",
+      "skills": [
+        "doc-governance",
+        "ebook-ai-notes"
+      ]
+    },
+    {
+      "title": "工作流",
+      "description": "日常开发工作流辅助。",
+      "skills": [
+        "committing"
+      ]
+    }
+  ]
+}

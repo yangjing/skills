@@ -1,0 +1,39 @@
+# ===== uv / Python 运行时产物 =====
+# uv 解析 PEP 723 脚本依赖时生成的锁文件与缓存
+*.lock
+.uv-cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== skill 运行产物 =====
+# inspect_source.py 默认把 epub 解压到临时目录；若用 --workdir 指定到当前目录，会生成这类子目录
+ebook_extract/
+extracted/
+*.extracted/
+
+# ===== 切勿内嵌电子书（版权 + 体积） =====
+# 源书应由使用者提供路径，evals 的 files 字段也只存路径不存文件
+*.epub
+*.pdf
+*.mobi
+*.azw3
+
+# ===== 笔记输出（通常在仓库 notes/ 下，不在此 skill 目录） =====
+# 若有人把笔记误生成到 skill 目录内则忽略
+notes/
+output/
+out/
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ===== 编辑器 =====
+.vscode/
+.idea/
