@@ -1,0 +1,74 @@
+{
+  "skill_name": "translate-epub",
+  "notes": "files 字段由使用者自行填写电子书路径（避免版权与体积问题）。建议用一本英文技术书 epub 做覆盖测试。译文语言默认简体中文，可在测试时改为其它语言。",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "翻译电子书 path/to/book.epub，生成双语版本。",
+      "expected_output": "先用 inspect_epub.py 探查源文件（确认源语言/章节结构），用 AskUserQuestion 确认译文语言（简体中文）与显示方式（双语）。通读全书建立 GLOSSARY.md 术语库后，逐章翻译。产出与源目录并列的 book-dual/ 目录，译文复用原文标签结构与 CSS class，显示在原文下方。每章翻译后用 validate_translation.py 验证。",
+      "files": ["path/to/book.epub"],
+      "assertions": [
+        "第一步运行了 inspect_epub.py 探查 EPUB 结构（uv run）",
+        "用 AskUserQuestion 确认了译文语言与双语/仅译文显示方式",
+        "翻译前先通读全文并生成了 GLOSSARY.md 术语库（含中英对照术语表）",
+        "输出目录名为源目录名 + -dual 后缀，与源目录并列",
+        "译文复用了原文的 HTML 标签与 CSS class（如标题译文用同 class 的 h2，而非自造 p/span）",
+        "译文作为独立兄弟元素紧跟原文之后，不在原文标签内部",
+        "每章翻译后运行了 validate_translation.py 验证 XHTML 合法性"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "把这本英文 epub 译成中文：path/to/book.epub，只要译文不要原文。",
+      "expected_output": "确认仅译文模式后，产出 book-zh/ 目录。译文替换原文内容（不保留英文原文段落），但保留原文的 HTML 标签结构、CSS class、图片、表格结构。",
+      "files": ["path/to/book.epub"],
+      "assertions": [
+        "确认了仅译文显示方式，输出目录后缀为 -zh（简体中文）",
+        "正文中不保留英文原文段落（仅译文）",
+        "图片、图注结构、表格结构保留（图片本身不翻译）",
+        "代码标识符（如 API 名、函数名）保留英文不译",
+        "术语与 GLOSSARY.md 一致"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "hey 帮我翻译下这本电子书 path/to/book.epub，翻完打包成 epub",
+      "expected_output": "识别为翻译 epub 任务（措辞随意但意图明确）。用 AskUserQuestion 确认译文语言后，按双语（默认）翻译，最后用 build_epub.py 打包成 .epub 文件。打包时 mimetype 不压缩且置于 zip 首位。",
+      "files": ["path/to/book.epub"],
+      "assertions": [
+        "识别出翻译意图并触发 skill（即使用户没说'epub 翻译'精确关键词）",
+        "用 AskUserQuestion 确认了译文语言（用户未在 prompt 中指定）",
+        "翻译完成后用 build_epub.py 打包成 .epub",
+        "打包的 epub 中 mimetype 为第一个条目且未压缩（ZIP_STORED）",
+        "译文复用原文标签结构，通过 validate_translation.py 验证"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "我已经把 epub 解压在 path/to/extracted/ 了，翻译成日语，双语版。",
+      "expected_output": "inspect_epub.py 识别为已解压 epub 目录（不重复解压）。输出目录后缀为 -dual（双语）。译文为日语，术语库含日英对照。列表项译文用 <li> 放回 <ul> 内（XHTML 合法）。",
+      "files": ["path/to/extracted/"],
+      "assertions": [
+        "inspect_epub.py 正确识别为已解压 epub 目录",
+        "输出目录后缀为 -dual（双语模式）",
+        "译文语言为日语（用户指定）",
+        "列表项译文用 <li> 标签并放回 <ul> 内，非 <p>（避免 XHTML 非法）",
+        "图注译文复用 h5.figure-container-h5 > span 结构",
+        "表格在原表格下方追加完整译文表格（相同结构/class），不破坏原表格"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "这本 epub path/to/book.epub 挺长的，先翻第一章看看效果。",
+      "expected_output": "先建立全书术语库，但只翻译第一章作为样本。确认效果后再（如用户要求）继续其余章节。第一章翻译质量（术语一致性、标签复用、XHTML 合法性）达标后才算完成。",
+      "files": ["path/to/book.epub"],
+      "assertions": [
+        "翻译前先通读全文/目录建立了 GLOSSARY.md（即使只翻一章）",
+        "只翻译了第一章（及对应的 toc.ncx/contents.html 条目），未擅自翻译全书",
+        "第一章译文术语与 GLOSSARY.md 一致",
+        "第一章通过 validate_translation.py 验证（XHTML 标签栈配平、ul 合法、无残留自定义标记）",
+        "向用户说明可在确认效果后继续其余章节"
+      ]
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 > 个人 AI 编程助手（Agent）技能集——通过 [skills.sh](https://www.skills.sh/) / `npx skills` 在 Claude Code、Cursor、Codex、Copilot、Windsurf、Gemini、Cline 等 70+ Agent 间分发复用。
 
-[![skills.sh](https://skills.sh/b/yangjing/my-skills)](https://www.skills.sh/yangjing/my-skills)
+[![skills.sh](https://skills.sh/b/yangjing/skills)](https://www.skills.sh/yangjing/skills)
 
 本仓库采用 [Agent Skills](https://agentskills.io/) 格式：顶层 `skills/` 目录，每个 skill 一个子目录，含 `SKILL.md`（YAML frontmatter + 指令）与按需的 `references/`、`scripts/`、`evals/`。每个 skill 目录另附 `README.md`，便于在 skills.sh 网站与 GitHub 上展示。
 
@@ -11,6 +11,10 @@
 ### 📚 ebook-ai-notes
 读取并精读电子书（epub / pdf），生成仿「微信读书 AI 大纲」风格的中文读书笔记：README 总览 + 每章一份结构化笔记（速览 / 分节精要 / 术语表 / 金句）。
 [`README`](skills/ebook-ai-notes/README.md) · [`SKILL.md`](skills/ebook-ai-notes/SKILL.md)
+
+### 🌐 translate-epub
+翻译 EPUB 电子书：先通读全书建立统一术语库，再逐章翻译，默认产出双语版本（译文显示在原文下方），也可仅保留译文，并可选打包成 `.epub`。译文复用原文 HTML 标签结构与 CSS class，渲染效果与原书一致。
+[`README`](skills/translate-epub/README.md) · [`SKILL.md`](skills/translate-epub/SKILL.md)
 
 ### 🦀 axum-tower
 在 Rust 项目中编写或评审 HTTP Web 服务代码时的 axum 0.8 + tower 模式速查与规范（handler / extractor / Router / 中间件栈 / 横切能力 / Common Mistakes）。
@@ -35,41 +39,42 @@ Fusion Rust 后端框架（`fusions` 及子 crate）的核心库模式与决策�
 **列出仓库内所有 skill：**
 
 ```bash
-npx skills add yangjing/my-skills --list
+npx skills add yangjing/skills --list
 ```
 
 **安装单个 skill（最常用）：**
 
 ```bash
-npx skills add yangjing/my-skills --skill ebook-ai-notes
-npx skills add yangjing/my-skills --skill axum-tower
-npx skills add yangjing/my-skills --skill fusions
-npx skills add yangjing/my-skills --skill committing
-npx skills add yangjing/my-skills --skill doc-governance
+npx skills add yangjing/skills --skill ebook-ai-notes
+npx skills add yangjing/skills --skill translate-epub
+npx skills add yangjing/skills --skill axum-tower
+npx skills add yangjing/skills --skill fusions
+npx skills add yangjing/skills --skill committing
+npx skills add yangjing/skills --skill doc-governance
 ```
 
 **安装多个 skill：**
 
 ```bash
-npx skills add yangjing/my-skills --skill axum-tower --skill fusions
+npx skills add yangjing/skills --skill axum-tower --skill fusions
 ```
 
 **安装仓库内全部 skill：**
 
 ```bash
-npx skills add yangjing/my-skills
+npx skills add yangjing/skills
 ```
 
 **全局安装到用户级目录（免提示）：**
 
 ```bash
-npx skills add yangjing/my-skills --skill fusions -g -y
+npx skills add yangjing/skills --skill fusions -g -y
 ```
 
 **用完整 GitHub URL：**
 
 ```bash
-npx skills add https://github.com/yangjing/my-skills --skill axum-tower
+npx skills add https://github.com/yangjing/skills --skill axum-tower
 ```
 
 > 安装前请像审查普通代码一样审查 skill 内容；包含 `scripts/` 的 skill 请留意安全提示。
@@ -80,37 +85,49 @@ npx skills add https://github.com/yangjing/my-skills --skill axum-tower
 
 ## 维护：从源仓库同步 skill
 
-本仓库是 skill 的**分发快照**，真相源在各业务仓库（skill 在那里随项目迭代）：
+本仓库是 skill 的**分发快照**，真相源在各业务仓库（skill 在那里随项目迭代）。每位维护者本机的源仓库位置各不相同，因此「要同步哪些 skill、源在哪」由**本地配置文件**管理，不入 git。
+
+**首次使用：复制样本为本地配置，改成本机路径**
+
+```bash
+cp sync.local.example.csv sync.local.csv
+# 然后编辑 sync.local.csv，把 src 改成本机源仓库路径（支持 ~ 与 $ENV 展开）
+```
+
+`sync.local.csv` 为两列 CSV（`name,src`），样本见 [`sync.local.example.csv`](sync.local.example.csv)。下表是各 skill 的源仓库归属参考，实际路径以本地 `sync.local.csv` 为准：
 
 | skill | 源仓库 |
 |-------|--------|
-| ebook-ai-notes | `~/projects/books/.agents/skills/ebook-ai-notes` |
+| ebook-ai-notes / translate-epub | `~/projects/books/.agents/skills/` |
 | axum-tower / committing / fusions / doc-governance | `~/hylxos/.agents/skills/` |
 
-源 skill 更新后，用 [`scripts/sync.sh`](scripts/sync.sh) 把最新内容同步进本仓库。映射表集中在脚本顶部的 `SKILL_SOURCES` 数组，新增/移除 skill 只需改那里。
+**同步命令**（[uv](https://docs.astral.sh/uv/) 运行，依赖由脚本内联声明，零额外安装）：
 
 ```bash
 # 列出映射表（skill 名 → 源路径）
-scripts/sync.sh --list
+uv run scripts/sync.py --list
 
 # 检测哪些 skill 已与源漂移（不改文件；有漂移则退出码 1，适合 CI）
-scripts/sync.sh --check
+uv run scripts/sync.py --check
 
-# 同步全部 skill（rsync 覆盖，保留本仓库独有的 README.md）
-scripts/sync.sh
+# 同步配置中的全部 skill（覆盖，保留本仓库独有的 README.md）
+uv run scripts/sync.py
 
-# 只同步指定 skill（可多个）
-scripts/sync.sh axum-tower fusions
+# 只同步配置中指定的 skill（可多个）
+uv run scripts/sync.py axum-tower fusions
+
+# 临时同步未登记的源（dest 名取自源目录名，不依赖配置文件；可多次指定）
+uv run scripts/sync.py --src ~/some-repo/.agents/skills/new-skill --src ~/other/.agents/skills/another
 ```
 
 **日常同步流程：**
 
 1. 在源仓库（如 `~/hylxos`）改 skill 并 `git commit`（源真相更新）。
-2. 回到本仓库跑 `scripts/sync.sh`（或先 `--check` 看漂移范围）。
+2. 回到本仓库跑 `uv run scripts/sync.py`（或先 `--check` 看漂移范围）。
 3. 若源 skill 的功能/用法有实质变化，相应更新 `skills/<name>/README.md`（README 是人工为分发写的，脚本不会覆盖）。
 4. `git add -A && git commit && git push`——skills.sh 会在用户下次 `npx skills add` 时自动取到新版。
 
-> 同步设计：脚本 `rsync` 时排除 `README.md`（本仓库为分发人工撰写，源目录没有），且不加 `--delete`，避免误删本仓库独有文件；内容无变化时 rsync 幂等，`git diff` 保持干净。
+> 同步设计：同步时排除 `README.md`（本仓库为分发人工撰写，源目录没有）与 `__pycache__`（Python 缓存），不删本仓库独有文件；内容无变化时幂等，`git diff` 保持干净。
 
 ## 目录结构
 
@@ -120,10 +137,18 @@ my-skills/
 ├── AGENTS.md                 # Agent 工作区指令
 ├── skills.sh.json            # skills.sh 网站分组展示配置
 ├── .gitignore
+├── sync.local.example.csv    # 本地映射样本（name,src）；复制为 sync.local.csv 使用
+├── sync.local.csv            # 本地映射（不入 git，每人本机源路径不同）
 ├── scripts/
-│   └── sync.sh               # 从源仓库同步 skill 的快照（--list/--check/同步）
+│   └── sync.py               # 从源仓库同步 skill 的快照（--list/--check/同步/--src）
 └── skills/
     ├── ebook-ai-notes/       # 电子书读书笔记生成
+    │   ├── SKILL.md
+    │   ├── README.md
+    │   ├── scripts/
+    │   ├── references/
+    │   └── evals/
+    ├── translate-epub/       # EPUB 翻译（双语 / 仅译文）
     │   ├── SKILL.md
     │   ├── README.md
     │   ├── scripts/

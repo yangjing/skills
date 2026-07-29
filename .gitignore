@@ -6,5 +6,16 @@
 .idea/
 *.swp
 
+# ZCode 工作区（会话记录、计划等本地文件）
+.zcode/
+
 # Node / npx skills 运行产物
 node_modules/
+
+# Python 运行产物（skill scripts 缓存，同步时已排除，此处兜底）
+__pycache__/
+*.pyc
+
+# sync.py 的本地 skill 映射（每人本机源路径不同，不入 git）
+# 样本见 sync.local.example.csv
+sync.local.csv

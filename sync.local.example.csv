@@ -1,0 +1,13 @@
+name,src
+# 每人本机的源仓库位置不同，此文件仅为样本（入 git）。
+# 复制为 sync.local.csv（不入 git，已忽略）后，把 src 改成本机路径。
+# src 支持 ~ 与环境变量展开，如 ~/hylxos/.agents/skills/fusions 或 $CODE/books/...
+#
+# 左列 name = 本仓库 skills/ 下的目标目录名（须等于该 skill 的 SKILL.md frontmatter name）
+# 右列 src  = 该 skill 在源业务仓库中的绝对路径
+ebook-ai-notes,~/projects/books/.agents/skills/ebook-ai-notes
+translate-epub,~/projects/books/.agents/skills/translate-epub
+axum-tower,~/hylxos/.agents/skills/axum-tower
+committing,~/hylxos/.agents/skills/committing
+fusions,~/hylxos/.agents/skills/fusions
+doc-governance,~/hylxos/.agents/skills/doc-governance

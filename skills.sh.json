@@ -12,10 +12,11 @@
     },
     {
       "title": "文档与笔记",
-      "description": "文档一致性治理与电子书读书笔记生成。",
+      "description": "文档一致性治理、电子书读书笔记生成与 EPUB 翻译。",
       "skills": [
         "doc-governance",
-        "ebook-ai-notes"
+        "ebook-ai-notes",
+        "translate-epub"
       ]
     },
     {
