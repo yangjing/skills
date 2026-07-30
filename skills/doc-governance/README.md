@@ -34,7 +34,7 @@ npx skills add <owner>/my-skills --skill doc-governance -g -y
 
 ## 依赖
 
-需要文件系统读写 + shell（`python3`、`git`）；适用于 Claude Code / Codex 风格工作区。
+需要文件系统读写 + shell（`uv` 或 `python3`、`git`）；适用于 Claude Code / Codex 风格工作区。链接校验脚本零第三方依赖，未装 uv 的环境用 `python3` 直跑等价。
 
 ## 使用说明
 
@@ -44,20 +44,26 @@ npx skills add <owner>/my-skills --skill doc-governance -g -y
 
 ### 链接校验
 
-删除文件 / 改名 / 移动文档后必跑：
+删除文件 / 改名 / 移动文档 / **改章节标题**后必跑：
 
 ```bash
-python3 skills/doc-governance/scripts/check-links.py
+uv run skills/doc-governance/scripts/check-links.py
 ```
 
-脚本默认扫描仓库常见文档目录与根级规范文件，输出 `BROKEN <文件> → <失效链接>`，无残留返回 `All links OK`。可用环境变量自定义扫描范围：
+校验三类引用：相对链接的目标文件、`#anchor` 章节锚点（按 GitHub slug 规则）、反引号 `` `ADR-NNNN` `` 编号。输出 `BROKEN <文件> → <失效引用>`，无残留返回 `All links & ADR references OK`；反引号 `` `.md` `` 引用另列 `CANDIDATE`（非阻断，需人工判断是过期引用还是前瞻性提及）。
+
+> **改章节标题是最隐蔽的断链来源**——它不动任何文件名，却能静默作废一批 `#anchor`，且只在有人点开时才暴露。
+
+可用环境变量自定义扫描范围（`DOC_GOV_INCLUDE` 多模式用分号 `;` 分隔，不可用 `|`，以免与正则 alternation 冲突）：
 
 ```bash
 DOC_GOV_ROOT=. \
-DOC_GOV_INCLUDE='^docs/.*\.md$|^(CLAUDE|README)\.md$' \
+DOC_GOV_INCLUDE='^docs/.*\.md$;^(CLAUDE|README)\.md$' \
 DOC_GOV_SKIP_DIRS='node_modules,target,dist,.next,doc_build' \
-python3 skills/doc-governance/scripts/check-links.py
+uv run skills/doc-governance/scripts/check-links.py
 ```
+
+脚本是 [PEP 723](https://peps.python.org/pep-0723/) 自包含形态，每次运行前会自跑 slug 规则 self-test——规则写错时结论不可信，故自检失败 MUST 阻断而非降级为警告（单独验证用 `--self-test`）。详细配置见脚本 docstring。
 
 ## 核心原则（MUST）
 
@@ -76,7 +82,7 @@ doc-governance/
 │   ├── workflow.md              # 三阶段详细 workflow + 输出模板
 │   └── REFERENCE.md             # 项目 overlay 模板（权威源/归属/废弃术语）
 ├── scripts/
-│   └── check-links.py           # 相对链接校验脚本（INCLUDE/SKIP 可配置）
+│   └── check-links.py           # 链接 + #anchor 锚点 + ADR-NNNN 校验（PEP 723 自包含，INCLUDE/SKIP/锚点开关可配置）
 └── evals/
     └── evals.json
 ```

@@ -11,7 +11,7 @@
 - **横切能力**：超时 / 限流 / CORS / 压缩 / 错误传播（`?` + `From<T> for AppError`）。
 - **Common Mistakes**：路由旧语法 panic、`Rc<T>` in State、async 中 blocking、SSE 套压缩层、裸 `JoinHandle` 泄漏等高频陷阱及正确写法。
 
-本文示例为**通用 axum 形态**；使用 Fusion 技术栈的项目请以 [`fusions`](../fusions/SKILL.md) skill 的覆盖约定为准。
+本文示例为**通用 axum 形态**；使用 Fusion 技术栈的项目请以 `fusions` skill 的覆盖约定为准。
 
 ## 适用场景
 

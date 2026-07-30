@@ -4,7 +4,7 @@
 
 [![skills.sh](https://skills.sh/b/yangjing/skills)](https://www.skills.sh/yangjing/skills)
 
-本仓库采用 [Agent Skills](https://agentskills.io/) 格式：顶层 `skills/` 目录，每个 skill 一个子目录，含 `SKILL.md`（YAML frontmatter + 指令）与按需的 `references/`、`scripts/`、`evals/`。每个 skill 目录另附 `README.md`，便于在 skills.sh 网站与 GitHub 上展示。
+本仓库采用 [Agent Skills](https://agentskills.io/) 格式分发——每个 skill 一个子目录，格式约定见[文末](#skill-格式约定)。
 
 ## Skills 一览
 
@@ -32,6 +32,10 @@ Fusion Rust 后端框架（`fusions` 及子 crate）的核心库模式与决策�
 对 Markdown 文档做一致性治理：**审计 → 同步 → 摘要**。发现术语漂移 / 重复定义 / 归属冲突，批量同步收口，产出 PR 描述与交接总结。项目中立，通过 overlay 接入项目专属权威源。
 [`README`](skills/doc-governance/README.md) · [`SKILL.md`](skills/doc-governance/SKILL.md)
 
+### 📏 sdd
+基于规格的开发（Spec-Driven Development）通用规范集：契约先于实现、文档只写代码无法表达的内容、规则必须可验证。覆盖契约形状 / 命名 / 分层 / 依赖 / 前端 / i18n 等，规则按 `references`（通用）/ `stacks`（技术栈形态）/ 项目 overlay 三层组织。与 `doc-governance` 分工：本 skill 管「写什么 / 怎么写才合规」，doc-governance 管「已写文档的一致性审计」。
+[`README`](skills/sdd/README.md) · [`SKILL.md`](skills/sdd/SKILL.md)
+
 ## 安装
 
 用 [`npx skills`](https://github.com/vercel-labs/skills) 安装到任意支持的 AI 编程助手。
@@ -51,6 +55,7 @@ npx skills add yangjing/skills --skill axum-tower
 npx skills add yangjing/skills --skill fusions
 npx skills add yangjing/skills --skill committing
 npx skills add yangjing/skills --skill doc-governance
+npx skills add yangjing/skills --skill sdd
 ```
 
 **安装多个 skill：**
@@ -94,12 +99,7 @@ cp sync.local.example.csv sync.local.csv
 # 然后编辑 sync.local.csv，把 src 改成本机源仓库路径（支持 ~ 与 $ENV 展开）
 ```
 
-`sync.local.csv` 为两列 CSV（`name,src`），样本见 [`sync.local.example.csv`](sync.local.example.csv)。下表是各 skill 的源仓库归属参考，实际路径以本地 `sync.local.csv` 为准：
-
-| skill | 源仓库 |
-|-------|--------|
-| ebook-ai-notes / translate-epub | `~/projects/books/.agents/skills/` |
-| axum-tower / committing / fusions / doc-governance | `~/hylxos/.agents/skills/` |
+`sync.local.csv` 为两列 CSV（`name,src`），样本见 [`sync.local.example.csv`](sync.local.example.csv)。各 skill 对应的源路径以本地 `sync.local.csv` 为准（用 `uv run scripts/sync.py --list` 随时查看）。
 
 **同步命令**（[uv](https://docs.astral.sh/uv/) 运行，依赖由脚本内联声明，零额外安装）：
 
@@ -128,52 +128,6 @@ uv run scripts/sync.py --src ~/some-repo/.agents/skills/new-skill --src ~/other/
 4. `git add -A && git commit && git push`——skills.sh 会在用户下次 `npx skills add` 时自动取到新版。
 
 > 同步设计：同步时排除 `README.md`（本仓库为分发人工撰写，源目录没有）与 `__pycache__`（Python 缓存），不删本仓库独有文件；内容无变化时幂等，`git diff` 保持干净。
-
-## 目录结构
-
-```
-my-skills/
-├── README.md                 # 本文件
-├── AGENTS.md                 # Agent 工作区指令
-├── skills.sh.json            # skills.sh 网站分组展示配置
-├── .gitignore
-├── sync.local.example.csv    # 本地映射样本（name,src）；复制为 sync.local.csv 使用
-├── sync.local.csv            # 本地映射（不入 git，每人本机源路径不同）
-├── scripts/
-│   └── sync.py               # 从源仓库同步 skill 的快照（--list/--check/同步/--src）
-└── skills/
-    ├── ebook-ai-notes/       # 电子书读书笔记生成
-    │   ├── SKILL.md
-    │   ├── README.md
-    │   ├── scripts/
-    │   ├── references/
-    │   └── evals/
-    ├── translate-epub/       # EPUB 翻译（双语 / 仅译文）
-    │   ├── SKILL.md
-    │   ├── README.md
-    │   ├── scripts/
-    │   ├── references/
-    │   └── evals/
-    ├── axum-tower/           # axum 0.8 + tower 模式
-    │   ├── SKILL.md
-    │   ├── README.md
-    │   ├── references/
-    │   └── evals/
-    ├── fusions/              # Fusion 框架规范
-    │   ├── SKILL.md
-    │   ├── README.md
-    │   ├── references/
-    │   └── evals/
-    ├── committing/           # git commit 生成
-    │   ├── SKILL.md
-    │   └── README.md
-    └── doc-governance/       # 文档一致性治理
-        ├── SKILL.md
-        ├── README.md
-        ├── scripts/
-        ├── references/
-        └── evals/
-```
 
 ## Skill 格式约定
 

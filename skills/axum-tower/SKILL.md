@@ -11,7 +11,7 @@ globs:
 
 1. Trigger：编写 / 评审 axum、tower、hyper Web 代码时使用本 skill。
 2. Load：先读本文 Quick Reference 与 Core Patterns；按需加载 references/。
-3. Apply：本文示例为**通用 axum 形态**；使用 fusions 技术栈的项目 MUST 优先遵 [fusions skill](../fusions/SKILL.md) 的覆盖约定——handler 状态从请求扩展取请求级 scoped `ModelManager`，MUST NOT 用 `State` 直取 base mm（绕过 `SET LOCAL` session vars，RLS 表静默空结果）、MUST NOT 自建 `struct AppState`。
+3. Apply：本文示例为**通用 axum 形态**；使用 fusions 技术栈的项目 MUST 优先遵 fusions skill 的覆盖约定——handler 状态从请求扩展取请求级 scoped `ModelManager`，MUST NOT 用 `State` 直取 base mm（绕过 `SET LOCAL` session vars，RLS 表静默空结果）、MUST NOT 自建 `struct AppState`。
 4. Conflict：本文与 fusions skill 冲突时，fusions 技术栈项目以 fusions 为准。
 5. MUST NOT：把本文的通用 State 注入示例照搬进 fusions 技术栈业务 handler。
 
@@ -110,5 +110,5 @@ let router = Router::new()
 
 ## Related Skills
 
-- [`fusions`](../fusions/SKILL.md)：Fusion 栈核心库模式（fusions 技术栈项目以其为准）
-- [`rust-best-practices`](../rust-best-practices/SKILL.md)：通用 Rust 惯用法
+- `fusions` skill：Fusion 栈核心库模式（fusions 技术栈项目以其为准）
+- `rust-best-practices` skill：通用 Rust 惯用法（按名加载，不假设与本 skill 并排安装）

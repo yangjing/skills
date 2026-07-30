@@ -1,10 +1,17 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
-check-links.py — 校验仓库内 Markdown 相对链接的有效性（项目中立版本）。
+check-links.py — 校验仓库内 Markdown 相对链接与章节锚点的有效性（项目中立版本）。
+
+PEP 723 自包含脚本，零第三方依赖——门禁不该因为装不上包而失效，故 `python3` 直跑等价。
 
 用法（从仓库根目录运行）：
 
-    python3 <path-to-this-skill>/scripts/check-links.py
+    uv run <path-to-this-skill>/scripts/check-links.py
+    uv run <path-to-this-skill>/scripts/check-links.py --self-test   # 校验 gate 本身的检出能力
 
 默认扫描（项目中立，按"常见 Markdown 摆放位置"匹配）：
   - docs/**/*.md
@@ -70,6 +77,11 @@ check-links.py — 校验仓库内 Markdown 相对链接的有效性（项目中
   DOC_GOV_HISTORICAL_PREFIXES_EXTRA
       在默认历史留档前缀之上**追加**条目（逗号分隔）。
 
+  DOC_GOV_NO_ANCHOR_CHECK=1
+      关闭 `#anchor` 章节锚点校验（只校验文件是否存在）。默认开启：SSOT 体系由链接
+      承载，改一个章节标题就能静默制造一批死锚点，而这类漂移只在有人点开时才暴露。
+      docsite 子树本就整树跳过，故自动生成锚点的误报面不在扫描范围内。
+
 除 markdown `[text](path)` 链接外，额外做两类反引号纯文本引用校验，二者严重性不同：
 
   - `` `ADR-NNNN` `` 编号——按 DOC_GOV_ADR_DIR 目录下是否存在对应 `NNNN-*.md` 文件校验，
@@ -86,16 +98,31 @@ check-links.py — 校验仓库内 Markdown 相对链接的有效性（项目中
 贸然匹配会引入更大误报面。
 
 输出：
-  - BROKEN <src.md>  →  <dead-target>（硬失败：markdown 链接原始 URL，或反引号 ADR 引用）
+  - BROKEN <src.md>  →  <dead-target>（硬失败：markdown 链接原始 URL、失效 #anchor，
+    或反引号 ADR 引用）
   - CANDIDATE <src.md>  →  <token>（非阻断：反引号 .md 文件名/路径引用，需人工复核）
-  - 返回码：0 = 无 BROKEN（可能仍有 CANDIDATE）；1 = 存在 BROKEN
+  - 返回码：0 = 无 BROKEN（可能仍有 CANDIDATE）；1 = 存在 BROKEN；2 = 用法错误或自检失败
+
+章节锚点校验（`#anchor`）按 GitHub slug 规则，三条易错规则各自都会造成**假阳性**
+（把有效锚点报成死链），故均有 self-test 钉住：
+
+  1. markdown 链接 MUST 在删标点之前折叠成其文字，否则 `[x](y)` 会变成 `xy`。
+  2. 空格 MUST **逐个**转连字符，MUST NOT 折叠连续空格。标题里的 `/` `+` `=` 这类
+     标点被删后会留下相邻的两个空格，GitHub 据此产出双连字符——
+     `## 5. SlaPolicy / ScheduleDefinition` 的真实锚点是 `#5-slapolicy--scheduledefinition`。
+  3. 重复标题按出现顺序追加 `-1` / `-2` 后缀。
+
+CJK MUST 计入 alnum（`str.isalnum()` 对中文返回 True），否则中文标题的 slug 会全部
+算错并产出一屏假阳性。假阳性的 gate 最终会被绕过，所以这不是可选的健壮性修饰。
 
 设计意图（结果驱动）：
-  - 检查相对链接、反引号 `ADR-NNNN` 引用（含 #anchor 时只校验文件部分）
+  - 检查相对链接、`#anchor` 章节锚点、反引号 `ADR-NNNN` 引用
   - 反引号 `.md` 引用单列 CANDIDATE 档，不与真正的硬失败混在一起拖垮 gate
-  - 历史留档（DOC_GOV_HISTORICAL_PREFIXES）跳过新增的两类反引号校验
+  - 历史留档（DOC_GOV_HISTORICAL_PREFIXES）跳过两类反引号校验与 `#anchor` 校验，
+    但仍校验链接文件存在性——留档里的锚点指向写就当时的目标结构，目标改名不使留档出错
+  - 主流程每次运行前跑一遍 self-test：slug 规则一旦写错，结论就不可信——不是漏报
+    就是一屏假阳性，两者都比没有 gate 更糟。自检失败 MUST 阻断，MUST NOT 降级为警告
   - 不发起 http(s) 请求（不验外网链接）
-  - 不解析 Markdown 锚点合法性（避免误报某些静态站点自动生成锚点）
   - 不解析 ext-less 链接（避免重复 docsite 工具链的工作）
   - 项目中立：默认匹配常见路径，特定项目通过环境变量覆盖 / 追加
 """
@@ -193,6 +220,7 @@ HISTORICAL_PREFIXES = {
         "DOC_GOV_HISTORICAL_PREFIXES", "DOC_GOV_HISTORICAL_PREFIXES_EXTRA", DEFAULT_HISTORICAL_PREFIXES
     )
 }
+ANCHOR_CHECK = os.environ.get("DOC_GOV_NO_ANCHOR_CHECK", "").strip() not in ("1", "true", "yes")
 
 LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
@@ -200,6 +228,50 @@ BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 # glob 模式被截断误配为字面文件名（截断后的 "overlay.md"/"architecture.md" 并非真实引用）。
 MD_TOKEN_RE = re.compile(r"^([\w][\w./-]*\.md)\b")
 ADR_TOKEN_RE = re.compile(r"\bADR-(\d{4})\b")
+
+
+HEADING_RE = re.compile(r"^#{1,6}\s")
+MD_LINK_INLINE_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+
+def slugify(heading: str) -> str:
+    """标题 → GitHub 锚点 slug。三步顺序不可调换（见模块 docstring 的三条易错规则）。"""
+    s = re.sub(r"^#+\s*", "", heading)
+    s = MD_LINK_INLINE_RE.sub(r"\1", s)          # 1. 先折叠链接为其文字，再删标点
+    s = s.lower()
+    # CJK 经 str.isalnum() 判为 alnum，故中文标题得以保留。
+    s = "".join(ch for ch in s if ch.isalnum() or ch.isspace() or ch in "_-")
+    s = re.sub(r"\s", "-", s)                    # 2. 逐个替换，MUST NOT 折叠连续空格
+    return re.sub(r"-+$", "", s)
+
+
+_SLUG_CACHE: dict[Path, set[str]] = {}
+
+
+def file_slugs(abs_path: Path) -> set[str]:
+    """目标文件的全部标题 slug；重复者按 GitHub 规则追加 -1 / -2。跳过围栏代码块内的 `#`。"""
+    cached = _SLUG_CACHE.get(abs_path)
+    if cached is not None:
+        return cached
+    try:
+        text = abs_path.read_text(encoding="utf-8")
+    except Exception:
+        text = ""
+    slugs: set[str] = set()
+    seen: dict[str, int] = {}
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or not HEADING_RE.match(line):
+            continue
+        base = slugify(line)
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        slugs.add(base if n == 0 else f"{base}-{n}")
+    _SLUG_CACHE[abs_path] = slugs
+    return slugs
 
 
 def _is_docsite(dir_path: Path) -> bool:
@@ -250,23 +322,51 @@ def extract_links(md: Path) -> list[str]:
     return [m.group(2).strip() for m in LINK_RE.finditer(text)]
 
 
-def resolve_target(src: Path, url: str) -> Path | None:
-    if url.startswith(("http://", "https://", "#", "mailto:", "tel:", "data:")):
-        return None
+def resolve_target(src: Path, url: str) -> tuple[Path | None, str]:
+    """→ (目标绝对路径, anchor)。外链与非文件协议返回 (None, "")。
+
+    纯 `#anchor` 解析为**源文件自身**——同文件锚点一样会因标题改名而失效，
+    不校验就是漏报。
+    """
+    if url.startswith(("http://", "https://", "mailto:", "tel:", "data:")):
+        return None, ""
     if url.startswith("file://"):
         url = url[len("file://"):]
-    path = url.split("#", 1)[0].split("?", 1)[0]
+    path, _, anchor = url.partition("#")
+    anchor = urllib.parse.unquote(anchor.split("?", 1)[0]) if anchor else ""
+    path = path.split("?", 1)[0]
     if not path:
-        return None
+        return (ROOT / src).resolve(strict=False), anchor
     path = urllib.parse.unquote(path)
     if path.startswith("/"):
         target = ROOT / path.lstrip("/")
     else:
         target = (ROOT / src).parent / path
     try:
-        return target.resolve(strict=False)
+        return target.resolve(strict=False), anchor
     except Exception:
-        return target
+        return target, anchor
+
+
+_DOCSITE_CACHE: dict[Path, bool] = {}
+
+
+def _in_docsite(abs_path: Path) -> bool:
+    """目标是否落在 docsite 子树内。静态站点自动生成锚点（ext-less 路由、插件注入的
+    heading id），按源文件标题算 slug 会误报，故这些目标只校验文件存在性。"""
+    if not SITE_AUTOSKIP:
+        return False
+    cur = abs_path.parent
+    while True:
+        cached = _DOCSITE_CACHE.get(cur)
+        if cached is None:
+            cached = _is_docsite(cur)
+            _DOCSITE_CACHE[cur] = cached
+        if cached:
+            return True
+        if cur == ROOT or cur.parent == cur:
+            return False
+        cur = cur.parent
 
 
 def _read_text(md: Path) -> str:
@@ -331,21 +431,66 @@ def resolve_adr_token(num: str) -> bool:
     return any(p.name.startswith(prefix) for p in adr_dir.glob("*.md"))
 
 
+def self_test() -> int:
+    """slug 规则写错的方向不是漏报就是一屏假阳性，两者都比没有 gate 更糟。
+
+    下列用例对应真实犯过的错：折叠连续空格、漏 URL 解码、链接折叠顺序颠倒、
+    CJK 被当作非 alnum 删掉。
+    """
+    import tempfile
+
+    fails = 0
+
+    def expect(cond: bool, msg: str) -> None:
+        nonlocal fails
+        if not cond:
+            print(f"SELF-TEST FAIL: {msg}", file=sys.stderr)
+            fails = 1
+
+    # slug 规则逐条
+    expect(slugify("## 真实章节 A") == "真实章节-a", "CJK 标题 slug 算错（CJK 未计入 alnum）")
+    expect(slugify("## 5. SlaPolicy / ScheduleDefinition 参数目录")
+           == "5-slapolicy--scheduledefinition-参数目录",
+           "双连字符规则错（连续空格被折叠了）")
+    expect(slugify("## 见 [x](y) 说明") == "见-x-说明", "markdown 链接未先折叠为其文字")
+    expect(slugify("## 尾部标点。") == "尾部标点", "尾部标点未删或残留连字符")
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "target.md").write_text(
+            "# 标题一\n## 真实章节 A\n## 5. SlaPolicy / ScheduleDefinition 参数目录\n"
+            "## 重名章节\n## 重名章节\n```\n## 代码块内的标题\n```\n",
+            encoding="utf-8",
+        )
+        slugs = file_slugs(root / "target.md")
+        expect("真实章节-a" in slugs, "未收集到普通标题 slug")
+        expect("5-slapolicy--scheduledefinition-参数目录" in slugs, "未收集到双连字符 slug")
+        expect("重名章节" in slugs and "重名章节-1" in slugs, "重名标题的 -N 后缀规则错")
+        expect("代码块内的标题" not in slugs, "围栏代码块内的 # 被误当作标题")
+
+    if fails:
+        return 2
+    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过 均正确）")
+    return 0
+
+
 USAGE = """\
 Usage: python3 check-links.py            (run from repo root; no positional args)
+       python3 check-links.py --self-test
 
-Validate relative Markdown links, backtick `ADR-NNNN` refs, and backtick `*.md`
-refs across the repository.
+Validate relative Markdown links, `#anchor` section anchors, backtick `ADR-NNNN`
+refs, and backtick `*.md` refs across the repository.
 Configuration is via DOC_GOV_* environment variables only (see module docstring):
   DOC_GOV_ROOT, DOC_GOV_INCLUDE, DOC_GOV_INCLUDE_EXTRA,
   DOC_GOV_SKIP_DIRS, DOC_GOV_SKIP_DIRS_EXTRA,
   DOC_GOV_SITE_CONFIGS[_EXTRA], DOC_GOV_NO_SITE_AUTOSKIP, DOC_GOV_VERBOSE,
-  DOC_GOV_ADR_DIR, DOC_GOV_HISTORICAL_PREFIXES[_EXTRA]
+  DOC_GOV_ADR_DIR, DOC_GOV_HISTORICAL_PREFIXES[_EXTRA], DOC_GOV_NO_ANCHOR_CHECK
 
 Output:
-  BROKEN     <file>  →  <link>   (markdown links + ADR refs; hard failure)
+  BROKEN     <file>  →  <link>   (markdown links + anchors + ADR refs; hard failure)
   CANDIDATE  <file>  →  <token>  (backtick *.md refs; informational only)
-Exit codes:  0 = no BROKEN (CANDIDATEs may remain) · 1 = BROKEN found · 2 = usage error
+Exit codes:  0 = no BROKEN (CANDIDATEs may remain) · 1 = BROKEN found
+             2 = usage error or self-test failure
 """
 
 
@@ -355,20 +500,37 @@ def main() -> int:
         if args[0] in ("-h", "--help"):
             print(USAGE)
             return 0
+        if args[0] == "--self-test":
+            return self_test()
         print(f"Error: unexpected argument {args[0]!r} — this script takes no "
               "positional arguments (configure via DOC_GOV_* env vars).\n",
               file=sys.stderr)
         print(USAGE, file=sys.stderr)
         return 2
+
+    # 规则自检先行：slug 规则错了，本次结论就不可信。MUST NOT 降级成警告后继续。
+    if ANCHOR_CHECK and self_test() != 0:
+        print("ABORT: gate 自检未通过，本次结果不可信——先修 slugify 规则。", file=sys.stderr)
+        return 2
+
     broken: list[tuple[str, str]] = []
     candidates: list[tuple[str, str]] = []
     files = list(iter_md_files())
     for md in files:
         for url in extract_links(md):
-            target = resolve_target(md, url)
+            target, anchor = resolve_target(md, url)
             if target is None:
                 continue
             if not target.exists():
+                broken.append((str(md), url))
+                continue
+            # 历史留档跳过锚点校验：其中的锚点指向的是**写就当时**的目标文档结构，
+            # 目标标题后来改名并不使这份留档出错——修它等于篡改历史快照，不修又会
+            # 永久红着。文件存在性仍照常校验（那是真实的可达性）。
+            if (ANCHOR_CHECK and anchor and target.suffix == ".md"
+                    and target.is_file() and not _in_docsite(target)
+                    and not _is_historical(md)
+                    and anchor not in file_slugs(target)):
                 broken.append((str(md), url))
         if _is_historical(md):
             continue

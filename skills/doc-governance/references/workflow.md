@@ -56,7 +56,7 @@ read-only，输出 audit report。
 8. **跑链接校验**
 
    ```bash
-   python3 <path-to-this-skill>/scripts/check-links.py
+   uv run <path-to-this-skill>/scripts/check-links.py
    ```
 
 ### 输出模板（audit-report）
@@ -134,7 +134,7 @@ file edits，输出 synchronized-docs。
 6. **必跑链接校验**
 
    ```bash
-   python3 <path-to-this-skill>/scripts/check-links.py
+   uv run <path-to-this-skill>/scripts/check-links.py
    ```
 
    零 broken 后才能视为同步完成。

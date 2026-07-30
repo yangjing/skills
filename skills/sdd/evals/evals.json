@@ -1,0 +1,93 @@
+{
+  "skill_name": "sdd",
+  "notes": "输出质量评估。运行方式见 https://agentskills.io/skill-creation/evaluating-skills —— 每条用例跑 with_skill / without_skill 两轮，对比 pass_rate 与 token 增量。断言只覆盖可客观判定项；行文质量与判断力留人工复核。",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我们要给订单加一个「审批」接口，后端 Rust + PG，前端 React。你先把契约定了吧。",
+      "expected_output": "先落契约再谈实现：指出 Contract Surface 变更 MUST 契约先行；给出 Producer(SoR)/Consumer、兼容窗口；按 §7.5 方法粒度判断 Approve/Reject 是否该合并为一个方法 + 结果字段；为关键验收列 Verification Oracle。不直接跳到写 handler 代码。",
+      "assertions": [
+        "点名 SPECIFICATION §4（契约先行）且明确「先契约后实现」的顺序要求",
+        "按 §7.5 判定 Approve / Reject 属「同一动作的不同结果」，建议合并为一个方法 + 结果字段，而非各切一个 RPC",
+        "识别出该变更需要 Producer(SoR) 与 Consumer 声明",
+        "为关键验收给出 Verification Oracle，而非仅说「加测试」",
+        "未在契约未定前直接产出 handler 实现代码"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "这个字段我打算叫 orgId，数据库里存 varchar，proto 里也是 string，前端直接透传。有问题吗？",
+      "expected_output": "指出多处违规：物理主键 MUST 为 UUID 或 BIGINT，MUST NOT 用 TEXT/VARCHAR；命名 casing 三层分工（proto snake_case）；wire→native 转换 MUST 在 api 层，禁止 wire string 传到 SQL bind。",
+      "assertions": [
+        "指出物理主键 MUST NOT 用 TEXT / VARCHAR，MUST 为 UUID 或 BIGINT（backend-layering §3.5）",
+        "指出 proto 字段命名应为 snake_case（naming-conventions casing 规则）",
+        "指出「前端直接透传」违反 api 层唯一转换位置的强类型纪律",
+        "引用时点名了具体分册与章节号"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我把这个模块的设计写进 docs/designs/，我想把每个函数的实现步骤都写清楚，方便后来人看。",
+      "expected_output": "先过 §1.0 内容准入：复述代码逻辑属禁入清单，MUST 删；改为写意图与规格、对外契约、决策理由、领域术语、运维知识。给出「删掉它，只读代码的人会失去什么」自检问题。同时指出禁止 path:line 行号锚点。",
+      "assertions": [
+        "在动笔前先过 SPECIFICATION §1.0 内容准入，而非直接照要求写实现步骤",
+        "明确指出「复述代码逻辑」属禁入清单",
+        "给出准入清单中该文档真正应承载的类别（意图与规格 / 对外契约 / 决策理由 / 领域术语 / 运维知识 至少三项）",
+        "提出自检问题「删掉它，只读代码的人会失去什么」"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "我们项目用 Go + MySQL + gRPC，不是你这套 Rust/ConnectRPC。这套规范还能用吗？",
+      "expected_output": "区分硬要求与形态：references/ 的规则不变，stacks/ 的形态需替换；指向 stacks/README §2 新增适配层流程与 templates/stack-adapter.md；逐条说明哪些是协议无关硬要求（契约先行、错误码可枚举、typed client、方法粒度、边界信任模型、transport 自愈）。",
+      "assertions": [
+        "明确区分「硬要求」（不变）与「形态」（替换）两类条款",
+        "指向 stacks/README §2 的新增适配层流程或 templates/stack-adapter.md",
+        "至少列出三条协议无关的硬要求（如契约先行、错误码可枚举、typed client、方法粒度、边界信任模型、transport 自愈）",
+        "未简单回答「不适用」或「照搬即可」"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "列表接口要分页，前端用的表格控件需要总页数和当前页码。后端给我做成 offset 分页吧。",
+      "expected_output": "指出 MUST NOT 为适配表格控件而要求后端改 offset；默认 Cursor 分页（AIP-158），页码语义由前端桥接（pageTokens 数组）；分页模式选择判据在 §15.3。",
+      "assertions": [
+        "指出 MUST NOT 为了适配表格控件而要求后端改用 Offset 分页",
+        "给出 Cursor → 页码控件的桥接方案（维护 pageTokens 数组）",
+        "点名分页模式选择判据所在章节（SPECIFICATION §15.3）",
+        "说明 current 必须来自 URL 参数而非组件本地状态"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "新服务要调用用户服务拿用户信息，我打算在网关统一解析 token 然后注入 X-User-Id 头给下游，下游信任这个头就行。",
+      "expected_output": "识别为边界信任模型选择（§4.6 模型 B）：MUST 在 ADR 中显式声明，MUST NOT 靠默认确定；采用模型 B MUST 保证上游只能经网关到达（网络隔离 / mTLS），否则模型不成立；MUST NOT 与模型 A 混用。",
+      "assertions": [
+        "识别出这是边界信任模型的架构选择（service-dependency-contract §4.6）",
+        "指出该选择 MUST 由项目 ADR 显式声明，MUST NOT 隐式确定",
+        "指出模型 B 成立的前提是上游只能经网关到达（网络隔离 / mTLS 或等价手段）",
+        "指出同一部署单元内 MUST NOT 混用两种模型"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "给我们团队的 AI agent 写一条规则：让它改数据库 schema 前先看看有没有影响到别的服务。",
+      "expected_output": "面向 Agent 的规则 MUST 写成六段执行协议（Trigger / Load / Apply / Conflict-Stop / Output / MUST NOT），而非解释性段落；产出的规则本身应六段齐全。",
+      "assertions": [
+        "指出面向 Agent / LLM 的规则 MUST 写成执行协议格式而非解释性段落",
+        "产出的规则实际包含 Trigger、Load 或 Lookup、Apply、Conflict 或 Stop、Output、MUST NOT 六段",
+        "点名格式依据（sdd-overview §3.3）"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "这个功能还没做完，我先在设计文档里把规划的形态写上，等做完再改。",
+      "expected_output": "临时方案 / 未装配设计 MUST 显式标注为非现行事实并写明解除或触发条件，MUST NOT 与已生效条款并列陈述——否则评审与验收会把它当作已有防线。",
+      "assertions": [
+        "指出未装配 / 规划中的形态 MUST 显式标注为非现行事实",
+        "要求写明解除或触发条件",
+        "指出 MUST NOT 与已生效条款并列陈述，并说明后果（被当作已有防线）"
+      ]
+    }
+  ]
+}

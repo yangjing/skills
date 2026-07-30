@@ -1,0 +1,130 @@
+{
+  "skill_name": "sdd",
+  "notes": "description 触发测试集。运行方式见 https://agentskills.io/skill-creation/optimizing-descriptions —— 每条跑 3 次算 trigger_rate，阈值 0.5。10 正 10 负；负例刻意选与 sdd 语义相邻的近似项（多数属 doc-governance 或纯实现任务），用以测 description 的精确性而非宽度。优化 description 时只用 train 段，validation 段留作泛化检验。",
+  "split": {
+    "train": [1, 2, 3, 4, 5, 6, 11, 12, 13, 14, 15, 16],
+    "validation": [7, 8, 9, 10, 17, 18, 19, 20]
+  },
+  "queries": [
+    {
+      "id": 1,
+      "query": "要加个批量导入居民的接口，先把 proto 定了再说吧",
+      "should_trigger": true,
+      "rationale": "契约先行，直接命中 Contract Surface 变更"
+    },
+    {
+      "id": 2,
+      "query": "这个状态字段在数据库里存成什么类型比较好？枚举还是 varchar 加 check？",
+      "should_trigger": true,
+      "rationale": "字段类型落层 + 枚举落库形态，不点名 SDD"
+    },
+    {
+      "id": 3,
+      "query": "handler 里我直接写了段 SQL，同事 review 说不行，但我觉得就几行没必要拆",
+      "should_trigger": true,
+      "rationale": "后端分层禁忌，口语化且带争议语气"
+    },
+    {
+      "id": 4,
+      "query": "我想给 order 服务加 Cancel 和 Close 两个 rpc，一个是用户取消一个是系统关单",
+      "should_trigger": true,
+      "rationale": "方法粒度（同一动作不同终态 MUST 合并），完全不点名规范"
+    },
+    {
+      "id": 5,
+      "query": "docs/designs/ 下这份新文档要写哪些章节？我不确定要不要写 BDD 场景",
+      "should_trigger": true,
+      "rationale": "文档体裁边界 §4.1.1"
+    },
+    {
+      "id": 6,
+      "query": "权限码想加一个 export，现在词表里只有 read/write/delete",
+      "should_trigger": true,
+      "rationale": "受控词表扩展，MUST 停止并走变更提案"
+    },
+    {
+      "id": 7,
+      "query": "新服务要不要单独一个库，还是共用现在这个 pg 实例？两边数据得对上",
+      "should_trigger": true,
+      "rationale": "服务依赖治理 + SoR/Read Model，措辞完全业务化"
+    },
+    {
+      "id": 8,
+      "query": "帮我看下这个 feature 的目录该怎么放，api application domain 这几层我老是搞混谁依赖谁",
+      "should_trigger": true,
+      "rationale": "分层依赖规则"
+    },
+    {
+      "id": 9,
+      "query": "这段临时方案我想先写进文档，反正下个迭代就替换了",
+      "should_trigger": true,
+      "rationale": "临时方案标注义务"
+    },
+    {
+      "id": 10,
+      "query": "列表页翻页的时候闪一下空白再出数据，产品说体验差。另外后端返回的是 nextPageToken 不是页码",
+      "should_trigger": true,
+      "rationale": "分页桥接 + 前端远程数据约定，从体验问题切入"
+    },
+    {
+      "id": 11,
+      "query": "帮我审计一下 docs/ 里的术语漂移，好几份文档对同一个概念说法不一致",
+      "should_trigger": false,
+      "rationale": "近似负例：文档一致性审计属 doc-governance"
+    },
+    {
+      "id": 12,
+      "query": "把仓库里所有 org_id 批量改成 facility_id，别留死链",
+      "should_trigger": false,
+      "rationale": "近似负例：批量术语同步属 doc-governance"
+    },
+    {
+      "id": 13,
+      "query": "刚做完一轮文档收口，帮我写个 PR 描述说清楚改了啥",
+      "should_trigger": false,
+      "rationale": "近似负例：治理摘要属 doc-governance"
+    },
+    {
+      "id": 14,
+      "query": "这个 rpc 调用超时了，日志里看到 connection reset，帮我查下为什么",
+      "should_trigger": false,
+      "rationale": "近似负例：共享 RPC 词汇，但这是故障排查不是契约设计"
+    },
+    {
+      "id": 15,
+      "query": "这个按钮的间距不太对，跟设计稿差了 4px",
+      "should_trigger": false,
+      "rationale": "近似负例：前端任务，但纯视觉微调不涉及工程约定"
+    },
+    {
+      "id": 16,
+      "query": "给 parse_uuid_field 这个函数补个单元测试",
+      "should_trigger": false,
+      "rationale": "近似负例：命中 SDD 里出现过的符号名，但只是写测试"
+    },
+    {
+      "id": 17,
+      "query": "线上 pg 连接数满了，帮我看看怎么调 pool 参数",
+      "should_trigger": false,
+      "rationale": "近似负例：共享数据库词汇，属运维调参"
+    },
+    {
+      "id": 18,
+      "query": "把这个 React 组件从 class 改成函数组件",
+      "should_trigger": false,
+      "rationale": "近似负例：前端重构，不涉及 route / 数据接入 / Provider 约定"
+    },
+    {
+      "id": 19,
+      "query": "帮我把 CHANGELOG 里这几条按时间倒序重新排一下",
+      "should_trigger": false,
+      "rationale": "负例：纯文档编辑，无规范判断"
+    },
+    {
+      "id": 20,
+      "query": "这个正则匹配不到中文，帮我改一下",
+      "should_trigger": false,
+      "rationale": "负例：纯实现问题"
+    }
+  ]
+}

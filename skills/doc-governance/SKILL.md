@@ -1,7 +1,7 @@
 ---
 name: doc-governance
 description: 文档治理工作流 — 对产品规格 / 技术规范 / 契约口径 / 设计文档 / 指南等所有 Markdown 文档做一致性治理：审计一致性、批量同步术语/字段/链接、生成变更摘要。用户提到"审计文档/检查口径/术语漂移/重复定义/唯一真实源/批量改名/统一字段/按附录收口/避免重复定义/写治理 PR 描述/交接总结"时调用。
-compatibility: 需要文件系统读写 + shell（python3、git）；适用于 Claude Code / Codex 风格工作区
+compatibility: 需要文件系统读写 + shell（uv 或 python3、git）；适用于 Claude Code / Codex 风格工作区
 metadata:
   domain: documentation-governance
   output: audit-report | synchronized-docs | change-summary
@@ -71,24 +71,26 @@ metadata:
 
 ## 命令速查
 
-链接校验（删除文件 / 改名 / 移动文档后必跑）：
+链接与锚点校验（删除文件 / 改名 / 移动文档 / **改章节标题**后必跑）：
 
 ```bash
-python3 <path-to-this-skill>/scripts/check-links.py
+uv run <path-to-this-skill>/scripts/check-links.py
 ```
 
-脚本默认扫描仓库内常见的文档目录与根级规范文件，输出 `BROKEN  <文件>  →  <失效链接>`，无残留时返回 `All links OK`。
+校验三类引用：相对链接的目标文件、`#anchor` 章节锚点（GitHub slug 规则）、反引号 `ADR-NNNN` 编号。输出 `BROKEN  <文件>  →  <失效引用>`，无残留时返回 `All links & ADR references OK`；反引号 `.md` 引用另列 `CANDIDATE`（非阻断，需人工判断是过期引用还是前瞻性提及）。
+
+**改章节标题是最隐蔽的断链来源**——它不动任何文件名，却能静默作废一批 `#anchor`，且只在有人点开时才暴露。
 
 工作区可通过环境变量自定义扫描范围：
 
 ```bash
 DOC_GOV_ROOT=. \
-DOC_GOV_INCLUDE='^docs/.*\.md$|^(CLAUDE|README)\.md$' \
+DOC_GOV_INCLUDE='^docs/.*\.md$;^(CLAUDE|README)\.md$' \
 DOC_GOV_SKIP_DIRS='node_modules,target,dist,.next,doc_build' \
-python3 <path-to-this-skill>/scripts/check-links.py
+uv run <path-to-this-skill>/scripts/check-links.py
 ```
 
-详细配置见脚本 docstring。
+脚本是 [PEP 723](https://peps.python.org/pep-0723/) 自包含形态，零第三方依赖——未装 uv 的环境用 `python3` 直接跑等价。每次运行前会自跑 slug 规则 self-test（单独验证用 `--self-test`）：规则写错时结论不可信，故自检失败 MUST 阻断而非降级为警告。详细配置见脚本 docstring。
 
 ## 规则
 
@@ -104,4 +106,4 @@ python3 <path-to-this-skill>/scripts/check-links.py
 
 - [`references/workflow.md`](references/workflow.md) — 三阶段详细 workflow + 输出模板
 - [`references/REFERENCE.md`](references/REFERENCE.md) — 项目 overlay 模板（权威源 / 归属 / 废弃术语由调用方填充）
-- [`scripts/check-links.py`](scripts/check-links.py) — 相对链接校验脚本（INCLUDE / SKIP 可配置）
+- [`scripts/check-links.py`](scripts/check-links.py) — 链接 + `#anchor` 锚点 + `ADR-NNNN` 校验脚本（PEP 723 自包含，INCLUDE / SKIP / 锚点开关可配置）

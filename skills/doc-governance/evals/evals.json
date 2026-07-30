@@ -25,6 +25,17 @@
       ]
     },
     {
+      "id": 4,
+      "prompt": "我把 designs 下几份文档的章节标题改得更准确了，比如「Ant Design 6 约束」改成「UI 组件库约束」。文件名一个没动，应该不影响别的文档吧？",
+      "expected_output": "指出改章节标题会静默作废指向该章节的 #anchor，且只在有人点开时才暴露；运行 check-links.py（含锚点校验）定位全部失效引用，按新标题重算锚点修复；MUST NOT 靠删链接消警。",
+      "assertions": [
+        "指出改章节标题会造成 #anchor 失效，即使文件名未变",
+        "运行了 scripts/check-links.py 并报告 BROKEN 结果",
+        "按目标文档的当前标题重算锚点来修复，而非删除链接",
+        "修复后复跑校验并交代 0 broken"
+      ]
+    },
+    {
       "id": 3,
       "prompt": "刚做完一轮文档收口，帮我写个 PR 描述，说清楚哪些是直接改内容、哪些只是改链接、哪些是归属调整。",
       "expected_output": "按 summary 模板输出 change-summary：区分 direct content edits / reference-link cleanup / ownership changes 三类，点名唯一真实源与校验结果。",
