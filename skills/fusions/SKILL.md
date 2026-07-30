@@ -2,29 +2,43 @@
 name: fusions
 description: >
   Use this skill when working on Rust backend code or docs for the Fusion
-  stack: `fusions`, `fusion-common`, `fusion-core`, `fusion-db`,
+  stack (v0.3): `fusions`, `fusion-common`, `fusion-core`, `fusion-db`,
   `fusion-web`, `fusion-rpc`, `fusion-security`, `fusion-ai`,
-  standalone `fusion-mq`, or `fusionsql`. Covers DI
+  standalone `fusion-mq`, or `fusion-sql`. Covers DI
   (`Application`/`Plugin`/`Component`), typed DB context
-  (`ModelManager`/`ModelContext`/`DbBmc`/`TypedDbPlugin`), Axum
-  (`WebError`/`WebServerBuilder`), ConnectRPC (`AuthLayer`/
-  `ContextValidationLayer`/`ConnectTransport`), JWT/OAuth/ACS3,
-  MQ producer/consumer plugins, AI factory/graph_flow, BMC CRUD,
+  (`ModelManager`/`ModelContext`/`TypedDbPlugin`) over sqlx via
+  `DbxPostgres`, Axum (`WebError`/`WebServerBuilder`), ConnectRPC
+  (`AuthLayer`/`ContextValidationLayer`/`TrustedSubject`/`ConnectTransport`),
+  JWT/OAuth/ACS3, MQ producer/consumer plugins, AI factory/graph_flow/STT,
   RLS/session-var transactions, trusted-header auth, and east-west
-  client transport. Do not use for frontend code or unrelated raw SQL
-  migrations that bypass `fusionsql`.
+  client transport. Also covers migrating off the v0.2 `fusionsql` /
+  sea-query / BMC API that v0.3 deleted. Do not use for frontend code.
 ---
 
-# fusions Framework
+# fusions Framework (v0.3)
 
 `fusions` is an **application-agnostic** Rust framework: `Application` + DI
-(`Component`, `Plugin`), typed `ModelManager<C>` over `fusionsql`, Axum
+(`Component`, `Plugin`), typed `ModelManager<C>` over `fusion-sql`, Axum
 integration via `fusion-web`, ConnectRPC via `fusion-rpc`, JWT via
 `fusion-security`, and standalone MQ via `fusion-mq`. The framework knows
 nothing about specific tenants, scopes, claims, or RLS policies — those are
 supplied by the **application crate** through an `AppContext: ModelContext`
 impl and configuration structs (`AuthConfig`, `ContextValidationConfig`,
 `MqConfig`). When you extend fusion crates, keep business semantics out.
+
+## v0.3 breaking changes (read before touching DB code)
+
+| Area | Change |
+| ---- | ------ |
+| SQL crates | `fusionsql` → **`fusion-sql`**, `fusionsql-core` → **`fusion-sql-core`**, `fusionsql-macros` **deleted** |
+| ORM surface | The whole sea-query stack is **gone**: `Fields` / `FilterNodes` / `SeaFieldValue` macros, `OpVal*`, `FilterGroups`, `DbBmc` / `BmcConfig` / `base::*` CRUD, `page::{Page, Paged, PageResult, OrderBys}`, `with_filter_interceptor`. Write SQL with sqlx against `DbxPostgres`. |
+| Auth | `fusion-rpc` adds `TrustedSubject` + `AuthConfig::trusted_subject_rpcs` (**`AuthConfig` gained a field** — literal constructions must add it) |
+| AI metering | `AiUsageEvent::from_ctx_usage` → **`from_ctx_tokens`**; new `from_ctx_audio` for STT; `AiUsageEvent` is now `#[non_exhaustive]` (construct via those two fns only) |
+| AI STT | `paraformer` module **deleted** → `dashscope::FunAsrRealtime`; `AudioStreamConfig::hotwords` → `vocabulary_ids` + `context_items`; `AudioEncoding::as_provider_str` removed |
+| Misc | `SensitiveString` lost its `sea_query::Value` / `Nullable` impls; `fusion-core` dropped the unused `fusionsql` feature |
+
+Full migration table (old symbol → replacement) at the top of
+[references/fusion-sql.md](references/fusion-sql.md).
 
 ## Module Map
 
@@ -35,10 +49,10 @@ impl and configuration structs (`AuthConfig`, `ContextValidationConfig`,
 | Core       | `fusions::core::*`      | `Application`, `Plugin`, `Component`, `CoreError`           |
 | DB         | `fusions::db::*`        | `TypedDbPlugin`, `DbPlugin`, `DefaultModelManager`          |
 | Web        | `fusions::web::*`       | `Router`, `WebError`, `WebResult`, `WebServerBuilder`       |
-| RPC        | `fusions::rpc::*`       | `AuthLayer`, `ContextValidationLayer`, `mount_rpc_services`, `build_connect_transport`, `ConnectTransport` |
-| SQL        | `fusions::sql::*`       | `ModelManager<C>`, `ModelContext`, `Fields`, `Page`, `SqlError` |
+| RPC        | `fusions::rpc::*`       | `AuthLayer`, `ContextValidationLayer`, `TrustedSubject`, `mount_rpc_services`, `build_connect_transport`, `ConnectTransport` |
+| SQL        | `fusions::sql::*`       | `ModelManager<C>`, `ModelContext`, `store::DbxPostgres`, `id::Id`, `DbConfig`, `SqlError` |
 | Security   | `fusions::security::*`  | `SecurityError`, `jwt::token::make_token`, `oauth::OAuthClient` |
-| AI         | `fusions::ai::*`        | `factory::ClientFactory`, `graph_flow::*`, `AiError`        |
+| AI         | `fusions::ai::*`        | `factory::ClientFactory`, `graph_flow::*`, `llm::MeteredLlmProvider`, `speech_to_text::SpeechToText`, `AiError` |
 | MQ         | `fusion_mq::*`          | `MessageQueuePlugin`, `EventProducerHandle`, `EventConsumerHandle`, `PublishEvent`, `RetryDecision` |
 
 > The aggregate crate `fusions` re-exports each sub-crate behind a feature
@@ -104,6 +118,10 @@ Rust / Axum / sqlx conventions.
   return empty and unprotected ones leak. Wrap reads with
   `mm.dbx().db_postgres()?.begin_txn_read_only()` and writes with
   `begin_txn`, or use `mm.transaction(|mm| async move { ... })`.
+  Caveat: `mm.transaction` / `read_transaction` are a bare `BEGIN; …; COMMIT;`
+  — they do **not** issue `set_config(...)`. An RLS application must go through
+  its own helper that layers the session vars on top (here:
+  `hylx_core::db::with_read_txn` / `with_write_txn`).
 - **Closure transactions support SAVEPOINT nesting.** Nested
   `mm.transaction(|mm| async move { ... }).await` becomes a SAVEPOINT
   automatically; commit/rollback is handled for you.
@@ -112,14 +130,34 @@ Rust / Axum / sqlx conventions.
   `u64` (rows affected), not `PgQueryResult` — calling `.rows_affected()`
   on it is a compile error. Details:
   [fusion-db reference](references/fusion-db.md#dbxpostgres-手动事务).
-- **Use BMC for all DB access.** Define `DbBmc` impls and call
-  `fusions::sql::base::*` CRUD helpers with the context generic explicit:
-  `base::create::<AppContext, UserBmc, _>(&mm, user).await?`. Raw `sqlx`
-  against `dbx.db()` bypasses `SET LOCAL` and audit columns.
+- **DB access is hand-written sqlx through `DbxPostgres` — there is no BMC.**
+  v0.3 deleted the whole BMC / query-builder layer. Repo functions take
+  `dbx: &DbxPostgres` and run `dbx.fetch_*(sqlx::query_as(...).bind(..))` /
+  `dbx.execute(sqlx::query(...))`. `dbx.db()` (the bare `&PgPool`) is the one
+  thing to avoid: it bypasses the transaction and its `SET LOCAL` session vars.
+  Audit columns are no longer auto-filled — write them explicitly from
+  `mm.ctx_ref()?`.
+- **Client-supplied `ORDER BY` has no framework validation any more.** The BMC
+  allowlist that used to check `order_bys` against the entity's columns is gone
+  with the rest of the sea-query stack. sqlx cannot `bind` an identifier, so
+  every sort/filter column coming from a client MUST be mapped through an
+  application-side allowlist to a static column name before it reaches the SQL
+  string. Same for pagination: `Page` / `PageResult` no longer exist, the DTO
+  is the application's (here: the proto contract).
 - **`AuthLayer` / `ContextValidationLayer` are application-agnostic.** All
   specifics — exempt paths/RPCs, claim mappings, error codes — come from
   the config struct passed at construction time. Do not hardcode anything
   application-specific inside the layers.
+- **`TrustedSubject` is a request *extension*, never a header** (v0.3). It lets
+  an application-owned **outer** layer vouch for a non-user principal (a sibling
+  bin's background job with no user token). An HTTP client can forge any header
+  but cannot set an extension, which is what makes it decidable. It is
+  fail-closed on two axes: the subject only reaches RPCs listed in
+  `AuthConfig::trusted_subject_rpcs`, and listing an RPC there does **not** make
+  it anonymous — a caller with neither a bearer token nor a trusted subject
+  still gets 401. An identity header value that is not valid ASCII rejects the
+  request rather than being dropped. Note `AuthConfig` gained this field, so
+  struct-literal configs must add it.
 - **Feature is `rpc`, not `grpc`.** The crate is `fusion-rpc` (ConnectRPC).
   The convenience bundle `microservice = web + db + security + rpc`.
 - **`fusion-mq` is standalone, not `fusions::mq`.** Register
@@ -144,17 +182,11 @@ Rust / Axum / sqlx conventions.
   `get_` prefix for `Result`-returning accessors in new code.
 - **`WebServerBuilder::serve()` runs the server loop until shutdown** (the
   old name `build()` is deprecated — it never "built and returned").
-- **Client `order_bys` is validated by default.** Page/list paths reject
-  ORDER BY columns outside the entity's `field_names()`; `with_order_by_allowlist`
-  is the explicit override (tighten to fewer columns, or open up join /
-  computed columns). Server-side `with_order_bys` defaults are trusted.
 - **Secret-carrying types never derive `Debug`.** Anything holding an
   `api_key` / credential gets a hand-written impl printing `<REDACTED>` —
-  `tracing::debug!(?config)` must not leak keys.
-- **Pagination wire contract is camelCase** (`orderBys` / `hasMore`); `Page`
-  still deserializes legacy `order_bys` via serde alias. Prefer
-  `PageResult::new_with_has_more(total, has_more, rows)` — plain `new()`
-  silently defaults `has_more = false`.
+  `tracing::debug!(?config)` must not leak keys. `fusion-ai`'s STT types extend
+  the same rule to **PHI**: audio bytes and transcript text print as
+  `<N bytes/chars redacted>`.
 
 ## Core templates
 
@@ -218,7 +250,7 @@ impl UserService {
 
     pub async fn create(&self, params: CreateParams) -> fusions::Result<User> {
         self.mm.transaction(|mm| async move {
-            let user = UserBmc::create(&mm, params.into()).await?;
+            let user = user_repo::insert(mm.dbx().db_postgres()?, &params).await?;
             self.profile_service().init_for(user.id).await?;  // SAVEPOINT
             Ok(user)
         }).await
@@ -285,6 +317,9 @@ let auth_layer = fusions::rpc::AuthLayer::new(security_setting, fusions::rpc::Au
     exclude_paths: &["/health"],
     preserve_identity_headers_for_paths: &[],
     exclude_rpcs: &[("myapp.auth.v1.AuthService", "Login")],
+    // v0.3: RPCs a verified TrustedSubject extension may reach. Not an
+    // exemption — callers with neither token nor subject still get 401.
+    trusted_subject_rpcs: &[("myapp.permission.v1.PermissionService", "ListUsersByPermission")],
     claim_mappings: &[
         fusions::rpc::ClaimMapping {
             header: "x-principal-id",
@@ -321,9 +356,10 @@ router.layer(validation).layer(auth_layer)
 
 ```rust
 mm.transaction(|mm| async move {
-    UserBmc::create(&mm, user).await?;
+    let dbx = mm.dbx().db_postgres()?;
+    user_repo::insert(dbx, &user).await?;
     mm.transaction(|mm| async move {           // → SAVEPOINT
-        ProfileBmc::create(&mm, profile).await
+        profile_repo::insert(mm.dbx().db_postgres()?, &profile).await
     }).await
 }).await?;
 
@@ -335,31 +371,35 @@ dbx.execute(sqlx::query("UPDATE …").bind(x)).await?;   // returns u64
 dbx.commit_txn().await?;
 ```
 
-### BMC + base CRUD
+RLS applications must not call `mm.transaction` directly — it is a bare
+`BEGIN; …; COMMIT;` with no `set_config(...)`. Use the application helper that
+layers the session vars on top (in this repo: `hylx_core::db::with_read_txn` /
+`with_write_txn` and their `_pg` variants).
+
+### Repo function (replaces BMC)
 
 ```rust
-use std::sync::OnceLock;
+use fusions::sql::store::DbxPostgres;
 
-pub struct UserBmc;
-impl DbBmc for UserBmc {
-    fn _bmc_config() -> &'static BmcConfig {
-        static CONFIG: OnceLock<BmcConfig> = OnceLock::new();
-        CONFIG.get_or_init(|| {
-            BmcConfig::new_table("users")
-                .with_column_id("id")
-                .with_id_generated_by_db(true)
-                .with_audit_columns()
-                .with_use_logical_deletion(true)
-                // optional override — client order_bys already default to
-                // the entity's field_names() allowlist
-                .with_order_by_allowlist(&["id", "created_at"])
-        })
-    }
+#[derive(sqlx::FromRow)]
+pub struct UserRow { pub id: i64, pub name: String }
+
+// dbx methods return Result<_, DbxError>; `?` lifts it into SqlError (or the
+// application's own error via a map_err helper).
+pub async fn find_by_id(dbx: &DbxPostgres, id: i64) -> Result<Option<UserRow>, SqlError> {
+    let row = dbx.fetch_optional(
+        sqlx::query_as::<_, UserRow>("SELECT id, name FROM users WHERE id = $1").bind(id),
+    ).await?;
+    Ok(row)
 }
 
-fusions::sql::base::create::<AppContext, UserBmc, _>(&mm, user).await?;
-fusions::sql::base::pg_get_by_id::<AppContext, UserBmc, User>(&mm, Id::I64(id)).await?;
-fusions::sql::base::pg_page::<AppContext, UserBmc, User, _>(&mm, filter, page).await?;
+pub async fn rename(dbx: &DbxPostgres, id: i64, name: &str) -> Result<u64, SqlError> {
+    // execute returns u64 (rows affected) — .rows_affected() on it is a compile error.
+    let n = dbx.execute(
+        sqlx::query("UPDATE users SET name = $2 WHERE id = $1").bind(id).bind(name),
+    ).await?;
+    Ok(n)
+}
 ```
 
 ## Feature flags
@@ -429,9 +469,9 @@ actively touching that module — they are detailed and would crowd context.
 | `Application` lifecycle, `Plugin` ordering, `Configurable`, `Component` rules, `CoreError` | [fusion-core](references/fusion-core.md)        |
 | `TypedDbPlugin` / `DbPlugin`, `Dbx`/`DbxPostgres` manual txn rules | [fusion-db](references/fusion-db.md)                                |
 | Axum handler shape, `WebError`, `WebServerBuilder`, `WebAuth`   | [fusion-web](references/fusion-web.md)                                |
-| ConnectRPC mount, `AuthLayer`/`ContextValidationLayer` config, ConnectError mapping, east-west client transport (`build_connect_transport` + self-heal) | [fusion-rpc](references/fusion-rpc.md)              |
+| ConnectRPC mount, `AuthLayer`/`ContextValidationLayer` config, `TrustedSubject` non-user principals, ConnectError mapping, east-west client transport (`build_connect_transport` + self-heal) | [fusion-rpc](references/fusion-rpc.md)              |
 | JWT token make/decrypt, password hashing, OAuth2 / Aliyun ACS3  | [fusion-security](references/fusion-security.md)                      |
 | MQ producer/consumer plugin, `fusion.mq` config, zombie reaping | [fusion-mq](references/fusion-mq.md)                                  |
-| Entity/Fields/FilterNodes macros, BMC, base CRUD fns, pagination | [fusionsql](references/fusionsql.md)                                  |
-| LLM provider factory, graph-flow Task/Graph/Session             | [fusion-ai](references/fusion-ai.md)                                  |
+| `ModelManager<C>` / `ModelContext`, `DbxPostgres` + sqlx repo shape, transactions, `SqlError`, **v0.2 → v0.3 migration table** | [fusion-sql](references/fusion-sql.md)      |
+| LLM provider factory, graph-flow Task/Graph/Session, usage metering, streaming STT | [fusion-ai](references/fusion-ai.md)                |
 | Feature flag combinations, top-level re-exports, quick-start    | [fusions](references/fusions.md)                                      |

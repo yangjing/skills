@@ -13,7 +13,9 @@
         "每个章节笔记包含「关键术语表」章节（中英对照）",
         "每个章节笔记包含「金句/重要观点」章节，至少 3 条",
         "笔记内容忠实于原书（术语、观点能在书中找到对应），未凭书名或通用知识编造",
-        "第一步骤使用了 inspect_source.py 脚本（uv run）探查源文件"
+        "第一步骤使用了 inspect_source.py 脚本（uv run）探查源文件",
+        "生成笔记前先建立了 _glossary.md 术语库（三段式：翻译术语/保留英文/禁用词），分发提取时只注入该章命中词而非整库",
+        "所有笔记生成完后运行了 check_glossary.py 验证术语一致性（退出码 0）"
       ]
     },
     {
@@ -25,7 +27,8 @@
         "先运行 inspect_source.py 探查 pdf 结构",
         "若 pdf 有内嵌书签(TOC)，按书签章节边界切分提取",
         "若检测为扫描件(needs_ocr=true)，给出 RapidOCR 兜底建议而非默认 Tesseract",
-        "生成的笔记为中文（专有名词保留英文），结构与 epub 用例一致"
+        "生成的笔记为中文（专有名词保留英文），结构与 epub 用例一致",
+        "生成了三段式 _glossary.md，并用 check_glossary.py 验证术语一致（保留英文词如 API/RAG 在笔记中以英文出现）"
       ]
     },
     {
@@ -36,7 +39,8 @@
       "assertions": [
         "inspect_source.py 正确识别为已解压 epub 目录（不重复解压）",
         "chapters 按 content.opf 的 spine 阅读顺序排列，而非文件名字母序",
-        "导航页（title/copyright/preface/about-*）被用于建立框架但不出现在逐章笔记中，逐章笔记只覆盖正文"
+        "导航页（title/copyright/preface/about-*）被用于建立框架但不出现在逐章笔记中，逐章笔记只覆盖正文",
+        "建立了三段式 _glossary.md（翻译术语 + 保留英文 + 禁用词），并用 check_glossary.py 验证译法一致性"
       ]
     }
   ]

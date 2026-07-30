@@ -37,13 +37,18 @@ use fusions::common::ahash::{HashMap, HashSet};  // 高性能 HashMap
 | `with-uuid`      | UUID 支持 + utoipa schema   |
 | `with-ulid`      | ULID 支持                    |
 | `with-openapi`   | utoipa schema 生成           |
-| `with-db`        | sqlx + sea-query             |
+| `with-db`        | sqlx（v0.3 起不再含 sea-query）|
 | `with-wasm`      | WASM 兼容                    |
 
 > Historical note: v0.1's `with-tokio` / `with-mea` / `with-connect` /
 > `with-config` features were dropped in v0.2 — they only existed to gate
 > cross-crate `From<XxxError> for DataError` impls, which now all live in
 > `fusions::error` and are gated there by the matching feature.
+>
+> v0.3: `SensitiveString` 不再 impl `sea_query::Value` / `Nullable`（整个
+> sea-query 栈随 `fusionsql` → `fusion-sql` 重构一并移除）。`with-db` 下它仍有
+> sqlx 的 `Type` / `Decode`（能从 `FromRow` 读出），但**没有 `Encode`** ——
+> 写库时 MUST 自己取 `as_str()` / `AsUnderlying::as_underlying()` 再 `bind`。
 
 ## Core Types
 

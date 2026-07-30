@@ -11,7 +11,7 @@ use fusions::rpc::{
     // 东西向客户端 transport（自愈）
     ConnectTransport, TransportConfig, build_connect_transport, build_connect_transport_with,
     // 认证中间件
-    AuthLayer, AuthConfig, ClaimMapping, ClaimSource,
+    AuthLayer, AuthConfig, ClaimMapping, ClaimSource, TrustedSubject,
     // 上下文校验
     ContextValidationLayer, ContextValidationConfig,
     // 配置
@@ -137,6 +137,7 @@ connectrpc 0.6 公开 API 中"自定义 connector"（配 connect-timeout / keepa
 - **应用无关**: 所有应用配置通过 `AuthConfig` 注入，Layer 本身不包含领域逻辑
 - **豁免机制**: 支持路径前缀豁免 (`exclude_paths`) 和 RPC service/method 豁免 (`exclude_rpcs`)
 - **Claim 映射**: 灵活配置 JWT claim → HTTP header 的映射规则
+- **非用户主体**: `TrustedSubject` extension + `trusted_subject_rpcs` 白名单（v0.3 新增，见下）
 
 ### AuthConfig
 
@@ -152,6 +153,12 @@ AuthConfig {
     exclude_rpcs: &[
         ("example.auth.v1.AuthService", "Login"),
         ("example.auth.v1.AuthService", "RefreshToken"),
+    ],
+
+    // v0.3 新增：已验证的 TrustedSubject 可触达的 (service, method)。
+    // 不是豁免 —— 无 token 且无 subject 的调用方照样 401。见下节。
+    trusted_subject_rpcs: &[
+        ("example.permission.v1.PermissionService", "ListUsersByPermission"),
     ],
 
     // JWT claim → HTTP header 映射（应用自定义）
@@ -199,10 +206,44 @@ let router = Router::new()
 1. 先移除 claim_mappings 中配置的身份 header（preserve_identity_headers_for_paths 命中时例外）
 2. 检查路径豁免 → 豁免则放行
 3. 检查 RPC 豁免 → 豁免则放行
-4. 提取 Bearer token；若没有 Authorization，则读取 cookie_token_name 指定的 cookie
-5. 解密 JWE → 失败返回 401
-6. 按 claim_mappings 注入 headers → 放行
+4. 检查请求 extension 里的 TrustedSubject：命中 trusted_subject_rpcs 则注入其
+   identity_headers 后放行；不命中则记 warn 并继续走下面的 bearer 流程（即 401）
+5. 提取 Bearer token；若没有 Authorization，则读取 cookie_token_name 指定的 cookie
+6. 解密 JWE → 失败返回 401
+7. 按 claim_mappings 注入 headers → 放行
 ```
+
+### TrustedSubject —— 非用户主体（v0.3 新增）
+
+给「兄弟 bin 的后台任务」这类**没有用户 token** 的调用方开的窄口子：由应用自己的
+**外层** layer 验证来源后，塞一个 `TrustedSubject` **request extension**。
+
+```rust
+pub struct TrustedSubject {
+    /// 谁为这个主体背书，进日志 / 审计，如 "hylx-careos:system"
+    pub principal: String,
+    /// 向下游注入的身份 header，如 [("x-tenant-id", "3")]。
+    /// 由验证方从它验过的东西推导，AuthLayer 绝不自己发明。
+    pub identity_headers: Vec<(&'static str, String)>,
+}
+```
+
+为什么是 extension 而不是 header：HTTP 客户端能伪造任意 header，但**设不了 request
+extension**（进程内的类型化槽位）。`AuthLayer` 是最外层，若它以 header 形式到达，
+就无法区分「我自己的内层 layer 注入的」与「调用方发来的」—— extension 从构造上消掉了
+这个不可判定的情形。
+
+fail-closed 的四条（改动这块前先读全）：
+
+1. `AuthLayer` 仍会先剥掉所有 `claim_mappings` 里的身份 header —— 伪造的
+   `x-tenant-id` 死在这一步，随后才注入 subject 自己的值。
+2. subject 只能触达 `trusted_subject_rpcs` 白名单内的 RPC，白名单外一律 401。
+3. 白名单**不使该 RPC 变成匿名可达**：既无 bearer 又无 subject 的调用方仍 401。
+4. `identity_headers` 的值若不是合法 header 值（非 ASCII / 含控制符），**拒绝请求**
+   而不是丢弃该 header —— 丢弃会让下游落进「无 tenant」分支。
+
+`trusted_subject_rpcs` 与 `exclude_rpcs` 刻意分开：前者是「换一种身份来源」，
+后者是「不需要身份」。合并两者会让匿名面被悄悄放大。
 
 ## ContextValidationLayer — 上下文校验
 
@@ -269,6 +310,7 @@ let auth_layer = AuthLayer::new(security_setting, AuthConfig {
     exclude_paths: &["/health"],
     preserve_identity_headers_for_paths: &[],
     exclude_rpcs: &[("myapp.auth.v1.AuthService", "Login")],
+    trusted_subject_rpcs: &[],
     claim_mappings: &[
         ClaimMapping { header: "x-principal-id", source: ClaimSource::Subject },
         ClaimMapping { header: "x-scope-id", source: ClaimSource::String("scope_id") },

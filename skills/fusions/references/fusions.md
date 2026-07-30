@@ -6,16 +6,16 @@
 
 ```toml
 [dependencies]
-fusions = { version = "0.2", features = ["full"] }
+fusions = { version = "0.3", features = ["full"] }
 
 # 或按需选择
-fusions = { version = "0.2", features = ["web", "db", "security"] }
+fusions = { version = "0.3", features = ["web", "db", "security"] }
 
 # 微服务（ConnectRPC）
-fusions = { version = "0.2", features = ["microservice"] }
+fusions = { version = "0.3", features = ["microservice"] }
 
 # 含 OAuth2
-fusions = { version = "0.2", features = ["api", "oauth"] }
+fusions = { version = "0.3", features = ["api", "oauth"] }
 ```
 
 ## Feature Flags
@@ -25,8 +25,8 @@ fusions = { version = "0.2", features = ["api", "oauth"] }
 | Feature     | 描述                       | 依赖                                   |
 | ----------- | -------------------------- | -------------------------------------- |
 | `web`       | Axum Web 框架              | fusion-web, axum, tower-http           |
-| `db`        | PostgreSQL + typed ModelManager | fusion-db, fusionsql, sqlx/postgres |
-| `db-sqlite` | SQLite 支持                | fusionsql/sqlite, sqlx/sqlite          |
+| `db`        | PostgreSQL + typed ModelManager | fusion-db, fusion-sql, sqlx/postgres |
+| `db-sqlite` | SQLite 支持                | fusion-sql/with-sqlite, sqlx/sqlite    |
 | `security`  | JWT 认证                   | fusion-security/with-jwt               |
 | `oauth`     | JWT + OAuth2               | security + fusion-security/with-oauth  |
 | `ai`        | LLM providers + graph_flow | fusion-ai                              |
@@ -87,7 +87,7 @@ pub use fusion_security as security;
 pub use fusion_web as web;
 
 #[cfg(feature = "db")]
-pub use fusionsql as sql;
+pub use fusion_sql as sql;
 
 #[cfg(feature = "web")]
 pub mod web_utils;
@@ -118,7 +118,7 @@ DataError::retry_limit("Too many attempts", 5)
 | `std::io::Error` / `SystemTimeError` / `AddrParseError` / `serde_json::Error` / `chrono::ParseError` / `uuid::Error` | always-on |
 | `tokio::sync::*` / `tokio::task::JoinError` / `mea::mpsc::SendError` / `config::ConfigError` | always-on |
 | `connectrpc::ConnectError` 双向 | `rpc` |
-| `fusionsql::SqlError` / `DbxError` / `sqlx::Error` | `db` |
+| `fusion_sql::SqlError` / `DbxError` / `sqlx::Error` | `db` |
 | `fusion_web::WebError` 双向 | `web` |
 | `fusion_security::SecurityError` | `security` |
 | `fusion_ai::AiError` | `ai` |
@@ -136,7 +136,7 @@ DataError::retry_limit("Too many attempts", 5)
 ### Web API 服务
 
 ```rust
-// Cargo.toml: fusions = { version = "0.2", features = ["api"] }
+// Cargo.toml: fusions = { version = "0.3", features = ["api"] }
 
 use fusions::{
     core::{Application, application::ApplicationBuilder, plugin::Plugin, async_trait},
@@ -189,7 +189,7 @@ async fn main() -> fusions::Result<()> {
 ### 微服务（ConnectRPC）
 
 ```rust
-// Cargo.toml: fusions = { version = "0.2", features = ["microservice"] }
+// Cargo.toml: fusions = { version = "0.3", features = ["microservice"] }
 
 use fusions::{
     core::Application,
@@ -215,7 +215,7 @@ async fn main() -> fusions::Result<()> {
 ### AI 服务
 
 ```rust
-// Cargo.toml: fusions = { version = "0.2", features = ["ai", "web"] }
+// Cargo.toml: fusions = { version = "0.3", features = ["ai", "web"] }
 
 use fusions::{
     core::Application,
@@ -239,14 +239,14 @@ use fusions::common::time::{now_offset, OffsetDateTime};
 use fusions::web::{Router, WebError, WebResult, WebServerBuilder, ok_json};
 use axum::{Json, Path, routing::{get, post}};
 
-// 数据库
+// 数据库（v0.3：无宏、无 BMC、无 Page —— SQL 走 sqlx + DbxPostgres）
 use fusions::db::{TypedDbPlugin, DbPlugin};
-use fusions::sql::{DbConfig, ModelContext, ModelManager, Fields, FilterNodes};
-use fusions::sql::base::{self, DbBmc, BmcConfig};
-use fusions::sql::page::{Page, PageResult};
+use fusions::sql::{DbConfig, ModelContext, ModelManager, SqlError};
+use fusions::sql::store::{Dbx, DbxPostgres};
+use fusions::sql::id::Id;
 
 // RPC (ConnectRPC)
-use fusions::rpc::{mount_rpc_services, AuthLayer, AuthConfig};
+use fusions::rpc::{mount_rpc_services, AuthLayer, AuthConfig, TrustedSubject};
 
 // AI
 use fusions::ai::factory::{ClientFactory, AgentConfig};

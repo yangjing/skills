@@ -164,8 +164,8 @@ def inspect_epub(path: Path, workdir: Path | None) -> dict:
     hints = []
     if not chapter_list:
         hints.append("未找到章节 HTML，请检查 epub 结构或手动指定。")
-    if len(chapter_list) > 40:
-        hints.append(f"章节数较多（{len(chapter_list)}），建议分批并行提取。")
+    if len(chapter_list) > 30:
+        hints.append(f"章节数较多（{len(chapter_list)}），建议先试一章再并行提取其余。")
     if not toc_path:
         hints.append("未自动定位到目录文件，可能需从正文首页人工识别章节结构。")
 
@@ -175,7 +175,7 @@ def inspect_epub(path: Path, workdir: Path | None) -> dict:
         "extracted_dir": str(extracted),
         "opf_path": str(opf_path.relative_to(extracted)) if opf_path else None,
         "toc_path": toc_path,
-        "html_root_hint": _guess_html_root(extracted),
+        "html_root": _guess_html_root(extracted),
         "chapters": chapter_list,
         "images_count": len(images),
         "total_lines": sum(c["lines"] for c in chapter_list),
@@ -260,6 +260,93 @@ def inspect_pdf(path: Path) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# 自测（--self-test）
+# --------------------------------------------------------------------------- #
+# 纯逻辑函数用内存数据测；epub 集成测用仓库内真实 epub 验证退出码 0 + JSON 合法。
+# 不依赖外部文件（除集成测的可选 epub 路径）。
+def _self_test() -> None:
+    """内置自测：断言核心逻辑函数行为正确，可选集成测真实 epub。"""
+    failures: list[str] = []
+
+    def check(cond: bool, msg: str) -> None:
+        if not cond:
+            failures.append(msg)
+
+    # 1. _is_epub_dir：含 mimetype 视为 epub 目录
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        check(_is_epub_dir(d) is False, "_is_epub_dir: 空目录应判 False")
+        (d / "mimetype").write_text("application/epub+zip")
+        check(_is_epub_dir(d) is True, "_is_epub_dir: 含 mimetype 应判 True")
+
+    # 2. _guess_html_root：OEBPS/Text 下有 html 应返回该相对路径
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        check(_guess_html_root(d) is None, "_guess_html_root: 无 html 应返回 None")
+        (d / "OEBPS" / "Text").mkdir(parents=True)
+        (d / "OEBPS" / "Text" / "chapter-1.html").write_text("<html></html>")
+        check(_guess_html_root(d) == "OEBPS/Text", "_guess_html_root: 应返回 OEBPS/Text")
+
+    # 3. _find_epub_toc：有 toc.ncx 应返回相对路径
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        check(_find_epub_toc(d) is None, "_find_epub_toc: 无 toc 应返回 None")
+        (d / "OEBPS").mkdir()
+        (d / "OEBPS" / "toc.ncx").write_text("<ncx/>")
+        check(_find_epub_toc(d) == "OEBPS/toc.ncx", "_find_epub_toc: 应返回 OEBPS/toc.ncx")
+
+    # 4. _text_lines：行数统计正确
+    with tempfile.TemporaryDirectory() as td:
+        f = Path(td) / "a.html"
+        f.write_text("line1\nline2\nline3\n")
+        check(_text_lines(f) == 3, "_text_lines: 3 行应返回 3")
+
+    # 5. _parse_opf_spine：按 spine 阅读顺序返回，非文件名排序
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "OEBPS").mkdir()
+        # 故意让 chapter-10 在 spine 中排在 chapter-2 前面，验证不按文件名排序
+        (d / "OEBPS" / "chapter-2.html").write_text("<html></html>")
+        (d / "OEBPS" / "chapter-10.html").write_text("<html></html>")
+        (d / "OEBPS" / "content.opf").write_text(
+            '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf">'
+            '<manifest><item id="c10" href="chapter-10.html"/>'
+            '<item id="c2" href="chapter-2.html"/></manifest>'
+            '<spine><itemref idref="c10"/><itemref idref="c2"/></spine>'
+            '</package>'
+        )
+        chapters, opf_path = _parse_opf_spine(d.resolve())
+        names = [c.name for c in chapters]
+        check(names == ["chapter-10.html", "chapter-2.html"],
+              f"_parse_opf_spine: 应按 spine 顺序 [chapter-10, chapter-2]，实际 {names}")
+        check(opf_path is not None and opf_path.name == "content.opf",
+              "_parse_opf_spine: 应返回 opf_path")
+
+    # 6. 可选集成测：仓库内真实 epub（若存在）应退出码 0 + JSON 合法 + html_root 字段
+    repo_epub = Path(__file__).resolve().parents[4] / "ebooks" \
+        / "ai-agents-action-intelligent-workflows-2nd" / "epub"
+    if repo_epub.exists():
+        try:
+            result = inspect_epub(repo_epub, None)
+            check(result.get("file_type") == "epub", "集成测: epub file_type 应为 epub")
+            check("html_root" in result, "集成测: 输出应含 html_root 字段（非 html_root_hint）")
+            check(len(result.get("chapters", [])) > 0, "集成测: 应找到至少 1 章")
+            # 字段名不应再出现旧名
+            check("html_root_hint" not in result, "集成测: 不应再含旧字段 html_root_hint")
+        except SystemExit as e:
+            failures.append(f"集成测: inspect_epub 异常退出码 {e.code}")
+
+    if failures:
+        _err("❌ 自测失败：")
+        for f in failures:
+            _err(f"  - {f}")
+        sys.exit(1)
+    _err(f"✓ 自测通过（{len(failures)} 失败）"
+         + (f"；集成测 epub={repo_epub.name}" if repo_epub.exists() else "；跳过集成测（无真实 epub）"))
+
+
+# --------------------------------------------------------------------------- #
 # 入口
 # --------------------------------------------------------------------------- #
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -276,22 +363,36 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 输出（stdout JSON）字段:
   epub: file_type, source, extracted_dir, opf_path, toc_path,
-        html_root_hint, chapters[{path,lines}], images_count, total_lines, hints
+        html_root, chapters[{path,lines}], images_count, total_lines, hints
   pdf:  file_type, source, page_count, total_chars, avg_chars_per_page,
         needs_ocr, has_toc, chapters[{level,title,start_page}], hints
 """,
     )
-    p.add_argument("path", help="电子书路径：.epub / 已解压 epub 目录 / .pdf")
+    p.add_argument("path", nargs="?", help="电子书路径：.epub / 已解压 epub 目录 / .pdf")
     p.add_argument(
         "--workdir",
         default=None,
         help="epub 解压目标目录（默认临时目录）。仅对 .epub 文件有效。",
+    )
+    p.add_argument(
+        "--self-test",
+        action="store_true",
+        help="运行内置自测（纯逻辑函数 + 可选真实 epub 集成测），无需 path 参数。",
     )
     return p
 
 
 def main() -> None:
     args = build_arg_parser().parse_args()
+
+    if args.self_test:
+        _self_test()
+        return
+
+    if not args.path:
+        print("Error: 缺少 path 参数（或使用 --self-test 运行自测）", file=sys.stderr)
+        sys.exit(2)
+
     path = Path(args.path).expanduser().resolve()
     if not path.exists():
         print(f"Error: 路径不存在：{path}", file=sys.stderr)

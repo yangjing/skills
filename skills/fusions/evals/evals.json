@@ -13,13 +13,13 @@
     },
     {
       "id": 2,
-      "prompt": "用 fusionsql 给 orders 表写一个带过滤和分页的列表查询，前端可以传排序字段。",
-      "expected_output": "Entity/Fields/FilterNodes 宏 + BMC base CRUD 范式的查询实现，分页走 fusionsql 内建 Page 参数；说明客户端 order_bys 默认按实体列集合校验（with_order_by_allowlist 仅为显式覆盖），不手写裸 SQL、不绕过 ModelManager。",
+      "prompt": "用 fusion-sql 给 orders 表写一个带过滤和分页的列表查询，前端可以传排序字段。",
+      "expected_output": "repo 函数持 &DbxPostgres，用 sqlx::query_as + bind 手写 SQL（v0.3 已无 Fields/FilterNodes/BMC/Page）；查询在事务内跑以保证 RLS session vars 生效；客户端排序字段先经应用侧白名单映射为静态列名再拼进 ORDER BY，并明确框架层已不再做这项校验。",
       "assertions": [
-        "使用 fusionsql 宏派生（Fields/FilterNodes）而非手拼 SQL 字符串",
-        "查询经 BMC/ModelManager 通路（RLS session vars 生效），未出现 dbx.db() 裸连",
-        "分页使用 fusionsql 的 Page 参数结构",
-        "未建议为了客户端排序而手拼 ORDER BY，也未声称必须配 allowlist 才有校验（默认已按实体列集合校验）"
+        "使用 sqlx::query_as/query + bind 经 DbxPostgres，未使用已删除的 Fields/FilterNodes/DbBmc/base::* /Page",
+        "查询在事务内（mm.transaction / read_transaction 或应用 RLS helper），未出现 dbx.db() 裸连",
+        "分页 DTO 由应用/proto 契约定义，未声称框架提供 Page/PageResult",
+        "客户端排序字段经应用侧列白名单映射，未直接把客户端字符串拼进 ORDER BY，也未声称框架仍自动校验 order_bys"
       ]
     },
     {
@@ -50,6 +50,28 @@
         "使用 DataError::not_implemented 而非 server_error/service_unavailable 占位",
         "说明 Unimplemented 是永久失败、客户端不应自动重试",
         "未把未实现错误映射为 503/可重试语义"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "把 fusions 升到 0.3 之后编译不过了：找不到 crate fusionsql，UserBmc 那一堆也全红。怎么改？",
+      "expected_output": "指出 v0.3 的破坏性变更：crate 改名 fusionsql→fusion-sql / fusionsql-core→fusion-sql-core、fusionsql-macros 已删除，整个 sea-query 栈（Fields/FilterNodes/SeaFieldValue/OpVal*/DbBmc/BmcConfig/base::* /page::*/with_filter_interceptor）无替代地移除；迁移方向是 repo 函数持 DbxPostgres 手写 sqlx，实体改 sqlx::FromRow，分页 DTO 自定义；并提醒 order_bys 的框架级校验随之消失，需自建列白名单。",
+      "assertions": [
+        "点明 crate 重命名（fusionsql → fusion-sql，fusionsql-core → fusion-sql-core，macros crate 删除）",
+        "说明 BMC / Fields / FilterNodes / OpVal / Page 是无替代删除，不是改名",
+        "给出替代范式：DbxPostgres + sqlx::query_as/query，实体用 sqlx::FromRow",
+        "提示 ORDER BY 列校验不再由框架提供，需应用侧白名单"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "另一个 bin 的定时任务要调我们的 ListUsersByPermission，它没有用户 token。能不能把这个 RPC 加进 exclude_rpcs？",
+      "expected_output": "不要加 exclude_rpcs（那会让该 RPC 对任何人匿名可达）。用 v0.3 的 TrustedSubject：应用自己的外层 layer 验证来源后插入 TrustedSubject request extension（extension 不是 header，客户端伪造不了），并把该 (service, method) 列进 AuthConfig::trusted_subject_rpcs；白名单不使 RPC 匿名可达，无 token 且无 subject 仍 401。",
+      "assertions": [
+        "拒绝用 exclude_rpcs，并说明它会让该 RPC 匿名可达",
+        "给出 TrustedSubject + trusted_subject_rpcs 方案",
+        "强调 TrustedSubject 必须走 request extension 而非 header（header 可被调用方伪造）",
+        "说明白名单是 fail-closed：既无 bearer 又无 subject 的调用仍 401"
       ]
     }
   ]

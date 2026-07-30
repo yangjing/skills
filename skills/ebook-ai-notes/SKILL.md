@@ -25,8 +25,16 @@ description: >
   ```bash
   uv run scripts/inspect_source.py <ebook-path>          # .epub / 已解压目录 / .pdf
   uv run scripts/inspect_source.py book.epub --workdir /tmp/extract
+  uv run scripts/inspect_source.py --self-test           # 内置自测
   ```
   数据走 stdout（JSON），诊断走 stderr。**第 1 步必跑。**
+- **`scripts/check_glossary.py`** — 验证笔记术语一致性（译法与 `_glossary.md` 是否冲突、保留英文词是否被中文化、同术语多译法漂移）。
+  ```bash
+  uv run scripts/check_glossary.py <notes-dir>                          # 默认 <notes-dir>/_glossary.md
+  uv run scripts/check_glossary.py <notes-dir> --glossary X.md
+  uv run scripts/check_glossary.py --self-test
+  ```
+  **所有笔记生成完后必跑**（退出码 0 = 无译法冲突；warning 不阻断但须人工裁决）。
 
 ## Workflow
 
@@ -48,22 +56,29 @@ uv run scripts/inspect_source.py "<ebook-path>"
 - 读每章的「**本章覆盖 + 前 1-2 个小节**」（术语密集区，无需整章），外加第 2 步已读的目录/前言/about-this-book。
 - 拟出初版术语库，落盘为 `notes/<book-slug>/_glossary.md`（下划线前缀排序靠前）。
 
-**`_glossary.md` 结构**：
+**`_glossary.md` 结构**（三段式，脚本据此确定性检查）：
 ```markdown
 # 全书术语表（Glossary）
-> 全书统一译法基准。各章笔记须与此一致；生成时如遇未收录术语，补录后回写本文件。
+> 单一真相源。生成笔记前先建此库并冻结为只读快照分发各章；
+> 遇新术语记入候选，全部完成后裁决合并回写。
+> 三类（check_glossary.py 据此检查）：翻译 / 保留英文 / 禁用
 
-| 英文 | 统一中文译法 | 简释 | 首现章节 |
+## 翻译术语（English → Chinese）
+| 英文 | 中文译法 | 简释 | 首现章节 |
 |---|---|---|---|
 | agent | 智能体 | 感知-决策-行动达成目标的自主软件实体 | 第1章 |
-| MCP (Model Context Protocol) | 模型上下文协议 | Anthropic 的工具连接开放标准 | 第1章 |
 | persona | 人设 | 智能体的角色与行为约束（system prompt） | 第1章 |
+
+## 保留英文（不翻译）
+API, token, RAG, Docker, JSON, HTTP, SDK, CoT, ReAct, MCP
+
+## 禁用词（通常为空）
 ```
 
 **裁定原则**：
 - 高频/核心/有歧义的术语**必须统一中文译法**（一书内只取一个译法，如 agent→智能体，不混用「代理」）。
-- **行业通用专名保留英文不译**：API、token、RAG、Docker、JSON、HTTP、SDK、CoT、ReAct 等。
-- 首字母缩写（MCP、LLM、HITL）首次出现给中文全称 + 缩写，后续用缩写。
+- **行业通用专名列入「保留英文」段**：API、token、RAG、Docker、JSON、HTTP、SDK、CoT、ReAct 等。首字母缩写（MCP、LLM、HITL）首次出现给中文全称 + 缩写，后续用缩写。
+- 「保留英文」段的词在笔记中应以英文形式出现，check_glossary.py 会检测是否被误中文化。
 - 每条标「首现章节」，便于读者回溯。
 
 ### 4. 分章节并行提取（关键提效点）
@@ -71,7 +86,8 @@ uv run scripts/inspect_source.py "<ebook-path>"
 
 每个子代理的提取 prompt 须包含：
 - 章节文件绝对路径（epub）/ 页码范围（pdf）
-- **`_glossary.md` 的路径，并要求「统一使用术语库的译法；遇到术语库未收录的新术语，须现场补录并在返回结果中单独列出，由主流程回写 `_glossary.md`」（增量补全）**
+- **只注入「该章命中的术语」而非整库**（整库塞 prompt 会产生噪声、降低遵循率）。先让子代理 Read `_glossary.md` 的「翻译术语」段，再在提取时只用相关词。
+- **并发回写采用「读共享快照 + 写本地候选 + 后合并裁决」**：子代理只读 `_glossary.md` 快照注入，**不中途改主文件**（防竞态）；遇到术语库未收录的新术语，在返回结果中单独列出候选，由主流程在全部章节提取完后**一次性裁决合并回写** `_glossary.md`（同一英文出现多个中文候选时，按首现/频次裁定唯一译法）。
 - 要求「**完整读取该文件全文**，再按结构化格式提取」，**不要凭书名或记忆编造**
 - 输出结构：章节标题+一句话主旨 / 本章覆盖 / 分节精要（含图表 Table·Figure 描述、关键代码片段）/ 本章术语（中英对照，须与 `_glossary.md` 一致）/ 金句观点（3-5 条）
 - 全部用中文，**术语一律采用 `_glossary.md` 的统一译法**，专有名词与代码保留英文
@@ -81,6 +97,12 @@ uv run scripts/inspect_source.py "<ebook-path>"
 
 ### 6. 编写 README 总览
 `notes/<book-slug>/README.md` 包含：这本书讲什么 / 核心贯穿概念 / 章节地图表 / 全书最值得带走的 N 个观点 / 技术栈速览 / 阅读建议 / **链接到 `_glossary.md` 作为全书术语表**。首尾章呼应（第 1 章导论 + 末章收官）是组织全书的好抓手。
+
+### 7. 术语一致性验证（必做）
+```bash
+uv run scripts/check_glossary.py "notes/<book-slug>/"
+```
+退出码 0 才算完成。error（译法与 `_glossary.md` 冲突）必须修正后回写并重跑；warning（漂移/保留英文缺失）须人工裁决：把漂移术语统一到唯一译法回写 `_glossary.md`，确认保留英文词未被误中文化。
 
 ## 笔记结构模板（微信读书 AI 大纲风格）
 
@@ -108,7 +130,7 @@ uv run scripts/inspect_source.py "<ebook-path>"
 ## 📚 本章术语
 > 全书术语统一收录在 [`_glossary.md`](./_glossary.md)；此处只列本章核心术语，译法须与之一致。
 
-| 英文 | 统一中文译法 |
+| 英文 | 中文译法 |
 |---|---|
 | term | 译名 |
 
@@ -131,7 +153,10 @@ uv run scripts/inspect_source.py "<ebook-path>"
 - **扫描件（pdf `needs_ocr: true`）用 RapidOCR 兜底，别用 Tesseract**：Tesseract 中文准确率差。RapidOCR 依赖较重，仅在确认无文本层时才做；做法是把页面渲染成图片再过 RapidOCR。
 - **忠实原文，勿凭记忆/书名编造**：每条观点、术语、数据都要能在原文找到出处。先读代码/原文再下结论（与工作区 AGENTS.md 一致）。
 - **章节数多时务必并行**：12 章串行读会很慢；用并行子代理（每代理一章），一条消息发多个 Agent 调用，能数倍提速。
-- **术语一致性是全书级问题，不是单章问题**：同一术语在不同章被不同子代理提取，极易译法漂移（如 persona→人设/人格、handoff→交接/移交、guardrail 中英混用）。**必须先建 `_glossary.md` 再分发提取**，并在每个子代理 prompt 中注入术语库路径 + 「遇到新术语补录回写」要求。各章笔记的「本章术语」只是全书术语表的子集，译法必须与之一致。
+- **术语一致性是全书级问题，不是单章问题**：同一术语在不同章被不同子代理提取，极易译法漂移（如 persona→人设/人格、handoff→交接/移交、guardrail 中英混用）。**必须先建 `_glossary.md` 再分发提取**，每个子代理注入术语库「翻译术语」段 + 并发回写采用「读共享快照 + 写本地候选 + 后合并裁决」。各章笔记的「本章术语」只是全书术语表的子集，译法必须与之一致。生成完用 `check_glossary.py` 做确定性验证。
+- **不全量注入术语库**：把整本术语库塞进每个子代理 prompt 会产生噪声、降低遵循率（网络实践 Lokalise）。只注入「该章命中的术语」即可——让子代理先 Read `_glossary.md` 再提取，而非把全表贴进 prompt。
+- **确定性验证优于 prompt 提示**：纯靠 prompt「请使用这些术语」是概率性服从，LLM 不总遵守（Lokalise 称 GPT-4 级也无法确定性地遵守 glossary）。必须配合 `check_glossary.py` 做译后确定性检查——error 必须修，不能靠「模型应该会遵守」。
+- **滚动上下文不够，术语库兜底**：仅靠「子代理记忆上一段」会让长距离术语漂移（gpetho 翻译 400 页专著时，缩写停用 30 页后模型丢线误译成反义词）。术语库是长距离一致性的唯一可靠基准。
 - **macOS 路径符号链接陷阱**：macOS 上 `/var`、`/tmp` 是 `/private/var`、`/private/tmp` 的符号链接。`zipfile.extractall` 解压后得到的真实路径带 `/private` 前缀，而 `tempfile` 返回的不带，两者混用会让 `Path.relative_to()` 抛 ValueError。脚本已用 `.resolve()` 统一规避；手写处理 epub 的代码时务必对所有路径 resolve。
 
 ## Progressive disclosure

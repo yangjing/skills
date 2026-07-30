@@ -97,11 +97,15 @@ pub fn routes() -> OpenApiRouter<Application> {
 }
 
 #[utoipa::path(get, path = "/item", tag = "Users")]
-async fn list_users(user_svc: UserSvc) -> WebResult<PageResult<User>> {
+async fn list_users(user_svc: UserSvc) -> WebResult<UserPage> {
     let users = user_svc.list(None, None).await?;
     ok_json!(users)
 }
 ```
+
+> v0.3 起框架不再提供 `Page` / `PageResult`（随 sea-query 栈一并删除）。
+> 分页请求与响应 DTO 由应用自己定义（本仓走 proto 契约），下面示例中的
+> `PageQuery` / `UserPage` 即应用侧类型。
 
 ## Handler shapes
 
@@ -125,9 +129,9 @@ async fn create_user(
 
 async fn search_users(
     Query(filter): Query<UserFilter>,
-    Query(page): Query<Page>,
+    Query(page): Query<PageQuery>,      // application-defined DTO
     user_svc: UserSvc,
-) -> WebResult<PageResult<User>> {
+) -> WebResult<UserPage> {
     ok_json!(user_svc.search(filter, page).await?)
 }
 ```

@@ -51,7 +51,7 @@ async fn main() -> fusions::core::Result<()> {
 }
 ```
 
-> `TypedDbPlugin<C>` 在 `build()` 中：加载 `fusion.db` 配置 → 创建 `fusionsql::ModelManager<C>` → 用 `ctx_factory` 设置初始 context → 注册为 Application 组件。`C` 只需要实现 `ModelContext`，fusions 不知道应用字段。
+> `TypedDbPlugin<C>` 在 `build()` 中：加载 `fusion.db` 配置 → 创建 `fusion_sql::ModelManager<C>` → 用 `ctx_factory` 设置初始 context → 注册为 Application 组件。`C` 只需要实现 `ModelContext`，fusions 不知道应用字段。
 
 ### 默认 DbPlugin
 
@@ -66,7 +66,7 @@ let app = Application::builder()
 let mm: ModelManager = app.component(); // ModelManager<fusion_common::ctx::Ctx>
 ```
 
-> `DbPlugin` 是兼容路径：它注册 `fusions::db::ModelManager`，即 `fusionsql::DefaultModelManager = ModelManager<fusion_common::ctx::Ctx>`。新服务若有自己的请求/审计上下文，应使用 `TypedDbPlugin<C>` 和应用 crate 内的类型别名。
+> `DbPlugin` 是兼容路径：它注册 `fusions::db::ModelManager`，即 `fusion_sql::DefaultModelManager = ModelManager<fusion_common::ctx::Ctx>`。新服务若有自己的请求/审计上下文，应使用 `TypedDbPlugin<C>` 和应用 crate 内的类型别名。
 
 ### 配置 (TOML)
 
@@ -152,7 +152,7 @@ let dbx = mm.dbx();   // Dbx 抽象
 ## Dbx 抽象
 
 ```rust
-use fusionsql::store::{Dbx, DbxPostgres, DbxSqlite, create_dbx};
+use fusion_sql::store::{Dbx, DbxPostgres, DbxSqlite, create_dbx};
 
 pub enum Dbx {
     Postgres(DbxPostgres),
@@ -235,10 +235,10 @@ pub async fn create_with_tx(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, data
 3. **传递 typed context**: 每个请求或后台任务使用 `mm.with_ctx(ctx)` 设置当前 `AppContext`
 4. **事务优先闭包式**: 使用 `mm.transaction()` / `mm.read_transaction()` 自动管理提交/回滚，支持 SAVEPOINT 嵌套
 5. **手动事务守规则**: 需要手动事务时，严格遵守 [DbxPostgres 手动事务](#dbxpostgres-手动事务) 规则
-6. **作用域过滤**: 使用 `with_filter_interceptor` 按应用规则补充 owner/scope 过滤，不在 fusions 写应用规则
+6. **作用域过滤**: v0.3 已无 `with_filter_interceptor`；owner / scope 过滤靠 `db_session_vars()` 注入的 RLS GUC，或 repo SQL 里的显式条件
 7. **连接池**: 合理配置 `max_connections` 和 `idle_timeout`
 
 ## Examples from Codebase
 
 - `crates/fusion-db/src/lib.rs` - DbPlugin / TypedDbPlugin 实现
-- `crates/fusionsql/src/model_manager.rs` - ModelManager 实现
+- `crates/fusion-sql/src/model_manager.rs` - ModelManager 实现

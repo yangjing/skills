@@ -469,8 +469,8 @@ DataError::internal(code, message, source)
 
 // feature gated
 // connectrpc::ConnectError ↔ DataError      (feature = "rpc")
-// fusionsql::SqlError                → DataError (feature = "db")
-// fusionsql::store::DbxError         → DataError (feature = "db")
+// fusion_sql::SqlError               → DataError (feature = "db")
+// fusion_sql::store::DbxError        → DataError (feature = "db")
 // sqlx::Error                        → DataError (feature = "db")
 // fusion_web::WebError ↔ DataError           (feature = "web")
 // fusion_security::SecurityError     → DataError (feature = "security")

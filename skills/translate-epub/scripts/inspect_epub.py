@@ -14,6 +14,7 @@ inspect_epub.py — 探查 EPUB 结构，为翻译规划输出结构化 JSON。
   2. 已解压的 epub 目录    （含 mimetype / META-INF / OEBPS）
 
 输出（stdout）：JSON，含：
+  book_title       — 从 <dc:title> 提取的主书名；缺省/占位（Untitled 等）为 None（hint 会提示修正）
   source_language  — 从 <dc:language> 推断的源语言（en/zh/ja/...）；None 表示需用户指定
   language_label   — 源语言的人类可读名称
   extracted_dir    — 解压后的根目录
@@ -98,6 +99,60 @@ def _detect_language(opf_path: Path | None, extracted: Path) -> tuple[str | None
                 return code, label
             return lang_raw, f"语言代码 {lang_raw}（需用户确认可读名称）"
     return None, None
+
+
+# 书名缺省/占位值：命中其一说明 EPUB 元数据的书名未填写，打包前必须修正。
+_PLACEHOLDER_TITLES = {"untitled", "unknown", "title", "no title", ""}
+
+
+def _detect_title(opf_path: Path | None, extracted: Path) -> str | None:
+    """从 content.opf 提取主书名（main title）。返回书名原文；缺省/占位时返回 None。
+
+    EPUB 允许多个 <dc:title>，主书名由 <meta refines="#id" property="title-type">main</meta>
+    标识；无此标识时取第一个。本函数优先取 title-type=main，否则取首个非空。
+    任意候选命中占位符（Untitled/空等）一律视为书名缺失，返回 None——书名占位是
+    常见 EPUB 缺陷，阅读器书架会显示 Untitled，必须提示修正。
+    """
+    candidates = [opf_path] if opf_path else list(extracted.rglob("*.opf"))
+    for opf in candidates:
+        if not opf or not opf.exists():
+            continue
+        try:
+            text = opf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        # 收集所有 <dc:title id="...">...</dc:title>，保留 id 与文本
+        titles = re.findall(
+            r'<dc:title(?:\s+id="([^"]*)")?[^>]*>\s*(.*?)\s*</dc:title>',
+            text, re.IGNORECASE | re.DOTALL,
+        )
+        if not titles:
+            continue
+        # 找 title-type=main 的 refines 目标
+        main_ids = set(re.findall(
+            r'<opf:meta\s+property="title-type"\s+refines="#([^"]+)"\s*>main</opf:meta>',
+            text, re.IGNORECASE,
+        ))
+        main_ids |= set(re.findall(
+            r'<meta\s+property="title-type"\s+refines="#([^"]+)"\s*>main</meta>',
+            text, re.IGNORECASE,
+        ))
+        # 优先 main 标记标题；占位符视为无效，回退到首个非占位标题
+        chosen: str | None = None
+        for tid, ttext in titles:
+            if tid and tid in main_ids:
+                chosen = ttext.strip()
+                break
+        if chosen and chosen.lower() in _PLACEHOLDER_TITLES:
+            chosen = None
+        if not chosen:
+            for _tid, ttext in titles:
+                cand = ttext.strip()
+                if cand and cand.lower() not in _PLACEHOLDER_TITLES:
+                    chosen = cand
+                    break
+        return chosen
+    return None
 
 
 def _parse_opf_spine(extracted: Path) -> tuple[list[Path], Path | None]:
@@ -199,8 +254,9 @@ def inspect_epub(path: Path, workdir: Path | None) -> dict:
     chapters, opf_path = _parse_opf_spine(extracted)
     toc_path = _find_epub_toc(extracted)
 
-    # 3. 源语言
+    # 3. 源语言 + 书名
     lang_code, lang_label = _detect_language(opf_path, extracted)
+    book_title = _detect_title(opf_path, extracted)
 
     # 4. 图片
     images = []
@@ -219,15 +275,23 @@ def inspect_epub(path: Path, workdir: Path | None) -> dict:
     if not chapter_list:
         hints.append("未找到章节 HTML，请检查 epub 结构。")
     if len(chapter_list) > 30:
-        hints.append(f"章节数较多（{len(chapter_list)}），建议先翻一章试效果再继续全书。")
+        hints.append(f"章节数较多（{len(chapter_list)}），建议先翻一章试效果再并行翻译其余。")
     if not lang_code:
         hints.append("未从元数据检测到源语言，需用 AskUserQuestion 让用户指定。")
     if not toc_path:
         hints.append("未自动定位到目录文件，可能需人工识别章节结构。")
+    # 书名元数据缺陷：书名缺失/为占位符（如 Untitled）时，阅读器书架会显示 Untitled，
+    # 打包前必须修正 content.opf 的 <dc:title> 与 toc.ncx 的 <docTitle>（见 SKILL 步骤 6）。
+    if not book_title:
+        hints.append(
+            "⚠️ 元数据书名缺失或为占位符（Untitled 等）。Apple Books 等阅读器书架会显示 "
+            "Untitled。打包前务必修正 content.opf 的 <dc:title> 与 toc.ncx 的 <docTitle>。"
+        )
 
     return {
         "file_type": "epub",
         "source": str(path),
+        "book_title": book_title,
         "source_language": lang_code,
         "language_label": lang_label,
         "extracted_dir": str(extracted),
@@ -242,6 +306,98 @@ def inspect_epub(path: Path, workdir: Path | None) -> dict:
     }
 
 
+# --------------------------------------------------------------------------- #
+# 自测（--self-test）
+# --------------------------------------------------------------------------- #
+def _self_test() -> None:
+    """内置自测：断言核心逻辑函数行为正确，可选集成测真实 epub。"""
+    import tempfile
+    failures: list[str] = []
+
+    def check(cond: bool, msg: str) -> None:
+        if not cond:
+            failures.append(msg)
+
+    # 1. _is_epub_dir
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        check(_is_epub_dir(d) is False, "_is_epub_dir: 空目录应判 False")
+        (d / "OEBPS").mkdir()
+        check(_is_epub_dir(d) is True, "_is_epub_dir: 含 OEBPS 应判 True")
+
+    # 2. _guess_html_root
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        check(_guess_html_root(d) is None, "_guess_html_root: 无 html 应返回 None")
+        (d / "OEBPS" / "Text").mkdir(parents=True)
+        (d / "OEBPS" / "Text" / "chapter-1.html").write_text("<html></html>")
+        check(_guess_html_root(d) == "OEBPS/Text", "_guess_html_root: 应返回 OEBPS/Text")
+
+    # 3. _detect_language：从 opf 的 dc:language 推断
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "content.opf").write_text(
+            '<package xmlns="http://www.idpf.org/2007/opf">'
+            '<dc:language>en-us</dc:language></package>'
+        )
+        code, label = _detect_language(Path(d / "content.opf"), d)
+        check(code == "en", f"_detect_language: en-us 应推断 code=en，实际 {code}")
+        check("英语" in (label or ""), f"_detect_language: label 应含'英语'，实际 {label}")
+
+    # 4. _tag_stats：统计块级标签
+    with tempfile.TemporaryDirectory() as td:
+        f = Path(td) / "a.html"
+        f.write_text("<h1>t</h1><p>x</p><p>y</p><li>z</li><code>c</code>")
+        stats = _tag_stats([f])
+        check(stats.get("h1") == 1, f"_tag_stats: h1 应为 1，实际 {stats.get('h1')}")
+        check(stats.get("p") == 2, f"_tag_stats: p 应为 2，实际 {stats.get('p')}")
+        check(stats.get("code") == 1, f"_tag_stats: code 应为 1，实际 {stats.get('code')}")
+
+    # 5. _parse_opf_spine：按 spine 顺序非文件名排序
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "OEBPS").mkdir()
+        (d / "OEBPS" / "chapter-2.html").write_text("<html></html>")
+        (d / "OEBPS" / "chapter-10.html").write_text("<html></html>")
+        (d / "OEBPS" / "content.opf").write_text(
+            '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf">'
+            '<manifest><item id="c10" href="chapter-10.html"/>'
+            '<item id="c2" href="chapter-2.html"/></manifest>'
+            '<spine><itemref idref="c10"/><itemref idref="c2"/></spine>'
+            '</package>'
+        )
+        chapters, opf_path = _parse_opf_spine(d.resolve())
+        names = [c.name for c in chapters]
+        check(names == ["chapter-10.html", "chapter-2.html"],
+              f"_parse_opf_spine: 应按 spine 顺序 [chapter-10, chapter-2]，实际 {names}")
+
+    # 6. 可选集成测：仓库内真实 epub
+    repo_epub = Path(__file__).resolve().parents[4] / "ebooks" \
+        / "ai-agents-action-intelligent-workflows-2nd" / "epub"
+    if repo_epub.exists():
+        try:
+            result = inspect_epub(repo_epub, None)
+            check(result.get("file_type") == "epub", "集成测: file_type 应为 epub")
+            check(result.get("source_language") is not None,
+                  "集成测: 应检测到 source_language")
+            check("html_root" in result, "集成测: 应含 html_root 字段")
+            check("tag_stats" in result and len(result["tag_stats"]) > 0,
+                  "集成测: tag_stats 应非空")
+        except SystemExit as e:
+            failures.append(f"集成测: inspect_epub 异常退出码 {e.code}")
+
+    if failures:
+        _err("❌ 自测失败：")
+        for f in failures:
+            _err(f"  - {f}")
+        sys.exit(1)
+    _err(f"✓ 自测通过（{len(failures)} 失败）"
+         + (f"；集成测 epub={repo_epub.name}" if repo_epub.exists() else "；跳过集成测（无真实 epub）"))
+
+
+# --------------------------------------------------------------------------- #
+# 入口
+# --------------------------------------------------------------------------- #
 def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="inspect_epub.py",
@@ -259,17 +415,31 @@ def build_arg_parser() -> argparse.ArgumentParser:
   tag_stats{h1-h6,p,li,td,th,table,img,code}, hints[]
 """,
     )
-    p.add_argument("path", help="EPUB 路径：.epub 文件或已解压的 epub 目录")
+    p.add_argument("path", nargs="?", help="EPUB 路径：.epub 文件或已解压的 epub 目录")
     p.add_argument(
         "--workdir",
         default=None,
         help="epub 解压目标目录（默认临时目录）。仅对 .epub 文件有效。",
+    )
+    p.add_argument(
+        "--self-test",
+        action="store_true",
+        help="运行内置自测（纯逻辑函数 + 可选真实 epub 集成测），无需 path 参数。",
     )
     return p
 
 
 def main() -> None:
     args = build_arg_parser().parse_args()
+
+    if args.self_test:
+        _self_test()
+        return
+
+    if not args.path:
+        print("Error: 缺少 path 参数（或使用 --self-test 运行自测）", file=sys.stderr)
+        sys.exit(2)
+
     path = Path(args.path).expanduser().resolve()
     if not path.exists():
         print(f"Error: 路径不存在：{path}", file=sys.stderr)

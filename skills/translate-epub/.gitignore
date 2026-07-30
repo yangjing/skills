@@ -1,0 +1,39 @@
+# ===== uv / Python 运行时产物 =====
+# uv 解析 PEP 723 脚本依赖时生成的锁文件与缓存
+*.lock
+.uv-cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ===== skill 运行产物 =====
+# inspect_epub.py 默认把 epub 解压到临时目录；若用 --workdir 指定到当前目录，会生成这类子目录
+epub_translate/
+extracted/
+*.extracted/
+
+# ===== 翻译输出目录（与源目录并列，不进版本库） =====
+# 源书应由使用者提供路径；翻译产物是衍生文件，体积大且版权敏感
+*-dual/
+*-zh/
+*-zh-tw/
+*-ja/
+
+# ===== 切勿内嵌电子书（版权 + 体积） =====
+# 源书应由使用者提供路径，evals 的 files 字段也只存路径不存文件
+*.epub
+*.mobi
+*.azw3
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ===== 编辑器 =====
+.vscode/
+.idea/

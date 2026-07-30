@@ -5,16 +5,17 @@
     {
       "id": 1,
       "prompt": "翻译电子书 path/to/book.epub，生成双语版本。",
-      "expected_output": "先用 inspect_epub.py 探查源文件（确认源语言/章节结构），用 AskUserQuestion 确认译文语言（简体中文）与显示方式（双语）。通读全书建立 GLOSSARY.md 术语库后，逐章翻译。产出与源目录并列的 book-dual/ 目录，译文复用原文标签结构与 CSS class，显示在原文下方。每章翻译后用 validate_translation.py 验证。",
+      "expected_output": "先用 inspect_epub.py 探查源文件（确认源语言/章节结构），用 AskUserQuestion 确认译文语言（简体中文）与显示方式（双语）。通读全书建立 _glossary.md 术语库后，逐章翻译。产出与源目录并列的 book-dual/ 目录，译文复用原文标签结构与 CSS class，显示在原文下方。每章翻译后用 validate_translation.py 验证。",
       "files": ["path/to/book.epub"],
       "assertions": [
         "第一步运行了 inspect_epub.py 探查 EPUB 结构（uv run）",
         "用 AskUserQuestion 确认了译文语言与双语/仅译文显示方式",
-        "翻译前先通读全文并生成了 GLOSSARY.md 术语库（含中英对照术语表）",
+        "翻译前先通读全文并生成了三段式 _glossary.md（翻译术语/保留英文/禁用词）",
+        "分发翻译时只注入该章命中词而非整库塞进 prompt（不全量注入）",
         "输出目录名为源目录名 + -dual 后缀，与源目录并列",
         "译文复用了原文的 HTML 标签与 CSS class（如标题译文用同 class 的 h2，而非自造 p/span）",
         "译文作为独立兄弟元素紧跟原文之后，不在原文标签内部",
-        "每章翻译后运行了 validate_translation.py 验证 XHTML 合法性"
+        "每章翻译后运行了 validate_translation.py --glossary 验证：XHTML 合法性 + 保留英文词（如 MCP/ReAct）必须以英文出现 + 禁用词 0 出现 + 段落数配平"
       ]
     },
     {
@@ -26,8 +27,8 @@
         "确认了仅译文显示方式，输出目录后缀为 -zh（简体中文）",
         "正文中不保留英文原文段落（仅译文）",
         "图片、图注结构、表格结构保留（图片本身不翻译）",
-        "代码标识符（如 API 名、函数名）保留英文不译",
-        "术语与 GLOSSARY.md 一致"
+        "代码标识符（如 API 名、函数名）保留英文不译，且 validate_translation.py --glossary 检查「保留英文」段词必须出现",
+        "术语与 _glossary.md 一致"
       ]
     },
     {
@@ -63,11 +64,26 @@
       "expected_output": "先建立全书术语库，但只翻译第一章作为样本。确认效果后再（如用户要求）继续其余章节。第一章翻译质量（术语一致性、标签复用、XHTML 合法性）达标后才算完成。",
       "files": ["path/to/book.epub"],
       "assertions": [
-        "翻译前先通读全文/目录建立了 GLOSSARY.md（即使只翻一章）",
+        "翻译前先通读全文/目录建立了三段式 _glossary.md（即使只翻一章）",
         "只翻译了第一章（及对应的 toc.ncx/contents.html 条目），未擅自翻译全书",
-        "第一章译文术语与 GLOSSARY.md 一致",
-        "第一章通过 validate_translation.py 验证（XHTML 标签栈配平、ul 合法、无残留自定义标记）",
+        "第一章译文术语与 _glossary.md 一致，保留英文词（如 MCP）以英文形式出现",
+        "第一章通过 validate_translation.py --glossary 验证（XHTML 标签栈配平、ul 合法、无残留自定义标记、保留英文强制、禁用词阻断、段落数配平）",
         "向用户说明可在确认效果后继续其余章节"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "翻译这本 epub path/to/book.epub 成中文，翻完后打包成 epub。",
+      "notes": "源 epub 的 content.opf 书名为占位符 Untitled（常见 EPUB 缺陷）。验证点：inspect 阶段就应暴露书名缺陷并提示修正；前置/后置页（版权页、献辞、作者简介、目录页）含读者可见正文，不可因「仅正文」而跳过；打包前修正 content.opf 的 dc:title/dc:language 与 toc.ncx 的 docTitle。",
+      "files": ["path/to/book.epub"],
+      "assertions": [
+        "inspect_epub.py 输出的 book_title 为 null 且 hints 提示「书名缺失/占位符（Untitled）」",
+        "翻译范围包含前置页正文（版权页/献辞/Contributors 作者简介/目录页 toc.xhtml），而非仅章节文件",
+        "打包前修正了 content.opf 的 <dc:title>（不再是 Untitled）与 <dc:language>（改为目标语言代码如 zh）",
+        "打包前修正了 toc.ncx 的 <docTitle><text> 全书标题（与 content.opf 的 dc:title 一致，不只改章节导航标题）",
+        "目录页 toc.xhtml 的主标题与各目录项链接文本均翻译（译文作为兄弟节点追加，复用原文结构，去 id）",
+        "子 agent/脚本翻译完成后，主流程独立验证真实文件含中文行数 + validate_translation.py 0 error，而非轻信「已完成」报告",
+        "打包的 epub 通过 validate_translation.py 验证，mimetype 为首条且未压缩"
       ]
     }
   ]
