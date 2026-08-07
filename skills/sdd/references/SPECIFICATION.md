@@ -197,6 +197,7 @@ Compliance 分级判据（按文档所辖 Contract Surface 与数据面的最高
 - 契约冻结后，前端、后端、BFF、上下游联调任务 SHOULD 使用 `git worktree` 或等效隔离工作区并行推进。
 - 契约包 MUST 至少包含：Feature Spec、`.proto`、测试 fixtures、错误码、权限码、BDD 场景，以及项目采用的开发与测试数据资产。
 - 任何破坏契约语义的改动 MUST 回到契约层修订并重新冻结；MUST NOT 仅在实现层临时打补丁规避。
+- 跨计划 / 跨迭代依赖：下游的前置判据 MUST 取上游「已交付」而非「已立项」，且下游开工前 MUST 用**已建成**的上游能力对自身范围逐项做开工准入实测——承载力与表达力缺口只有对着已建成的实现比对才会暴露，立项文档上不可见。
 
 ### 4.4 开发数据策略
 
@@ -543,6 +544,17 @@ CI 流水线 SHOULD 遵循：契约生成一致性 → 单元测试 → API 契�
 - **Output**：报告含失败用例清单、问题描述，以及（如发生）终止原因与终止位置；发生修复复验时含各缺陷的处置与复验结论。
 - **MUST NOT**：逐条记录通过用例、现场修复被测代码、现场归因、跳过阻塞继续后续用例、为修复复验另立报告文件。
 
+### 13.3 UAT 与自动化测试的边界（AUTO 证据规则）
+
+UAT 是 Level 4 人工验收层（§13.1），**不是**自动化测试的别称——Level 1-3（单元 / API 契约 / E2E）的产出在 UAT 语境下只是「AUTO 证据」，不是 UAT 判定结论本身。Agent 维护或编写 UAT 文档时 MUST 遵守：
+
+- **不可替代**：自动化测试通过（绿）≠ UAT 已验收 / 已签收。UAT 判定结论只来自人工执行当轮的 `reports/` 签收记录或 Human Approval Gate 留痕。
+- **AUTO 的语义**：UAT 文档（覆盖矩阵、章节「自动化证据」块）中标注 `AUTO` / 引用某测试文件，仅声明「该自动化证据文件存在」，**不声明**「本轮已执行」「本轮已通过」。
+- **不混同两层产出**：MUST NOT 用自动化测试计数 / 覆盖率 / 套件清单冒充 UAT 覆盖；MUST NOT 把「有测试文件」写成「UAT 已覆盖」。UAT 文档维护自动化测试的映射时，MUST 以「证据指针」形态登记（文件路径 + 用例计数），与「人工验收签收状态」分列。
+- **何为 UAT 不可替代的判定**：§13.1 Level 4 定义的四类——主观体感、真实物理链路、上线签字、Human Approval Gate。`expect(x).toBe(y)` 可表达的确定性断言归自动化（Level 1-3），不进 UAT 判定面（具体落地判据由项目固化，如本仓 `docs/designs/test-architecture.md` §6「UAT vs E2E 分工」）。
+
+> 本条是 UAT 文档中「AUTO 证据」概念的唯一真相源；项目 UAT 文档的本地措辞（如本仓 `docs/uat/coverage-matrix.md` 的 AUTO 定义）MUST 与本条一致，MUST NOT 另立口径。
+
 ## 14. AI Agent 最小任务输出
 
 任务描述与 PR 描述只保留下列最小字段，以控制 Agent 加载的上下文规模。
@@ -621,7 +633,7 @@ Cursor 分页与页码型 UI 控件（需要 `当前页 / 总数`）语义不匹
 - 翻到第 n 页时取 `pageTokens[n-1]` 发起请求，把响应的 `next_page_token` 写回 `pageTokens[n]`。
 - 总数优先用服务端返回的 `total_size`；未返回时按 `当前页 × page_size + (有下一页 ? page_size : 0)` 近似。
 
-具体 UI 库的 props 绑定见项目前端规范（本文档集内的 React 栈落地见 [frontend-conventions §6.3](./frontend-conventions.md#63-cursor-分页与-table-控件桥接)）。
+具体 UI 库的 props 绑定见项目前端规范（本文档集内的 React 栈落地见 [frontend-conventions §6.3](./frontend-conventions.md#63-cursor-分页与页码控件桥接)）。
 
 ### 15.5 全量获取豁免
 

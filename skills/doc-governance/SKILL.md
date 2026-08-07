@@ -77,7 +77,7 @@ metadata:
 uv run <path-to-this-skill>/scripts/check-links.py
 ```
 
-校验三类引用：相对链接的目标文件、`#anchor` 章节锚点（GitHub slug 规则）、反引号 `ADR-NNNN` 编号。输出 `BROKEN  <文件>  →  <失效引用>`，无残留时返回 `All links & ADR references OK`；反引号 `.md` 引用另列 `CANDIDATE`（非阻断，需人工判断是过期引用还是前瞻性提及）。
+校验三类引用：相对链接的目标文件、`#anchor` 章节锚点（GitHub slug 规则）、反引号 `ADR-NNNN` 编号。输出 `BROKEN  <文件>  →  <失效引用>`，无残留时返回 `All links & ADR references OK`；反引号 `.md` 引用另列 `CANDIDATE`（非阻断，需人工判断是过期引用还是前瞻性提及）。CANDIDATE 解析依次按仓根 / 源文件目录 / 末段对齐（唯一命中）；人工甄别后确认无需处理的条目登记进白名单（默认 `<仓根>/.doc-gov-candidate-allowlist`，行格式 = 直接粘贴 CANDIDATE 输出行），登记后不再重报——新增候选 MUST 逐条甄别，MUST NOT 未甄别就入白名单。白名单条目防腐由脚本自动承担：一轮扫描中未被消费的条目（引用已消失 / 目标已落地致豁免多余）以 `STALE` 报出（非阻断），出现时 MUST 回删对应行。
 
 **改章节标题是最隐蔽的断链来源**——它不动任何文件名，却能静默作废一批 `#anchor`，且只在有人点开时才暴露。
 

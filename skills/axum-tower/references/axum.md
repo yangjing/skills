@@ -3,8 +3,9 @@
 基于 [Axum 官方文档](https://docs.rs/axum) 与 [axum 0.8 发布说明](https://tokio.rs/blog/2025-01-01-announcing-axum-0-8-0)。
 
 > **fusions 技术栈注意**：本文的 `State(...)` 注入示例为通用 axum 形态；fusions
-> 技术栈的 handler MUST 从请求扩展取请求级 scoped `ModelManager`（见 fusions
-> skill），直取 base mm 会绕过 `SET LOCAL` session vars 致 RLS 表静默空结果。
+> 技术栈的 handler MUST 从请求扩展取请求级 scoped `ModelManager`（见
+> [fusions SKILL](../../fusions/SKILL.md)），直取 base mm 会绕过 `SET LOCAL`
+> session vars 致 RLS 表静默空结果。
 
 ## axum 0.8 迁移要点（旧代码常见坑）
 

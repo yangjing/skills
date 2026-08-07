@@ -48,6 +48,7 @@ backend-layering §3.5 要求「若 SQL 驱动需额外 feature 才能直接 bin
 | 业务自然键用独立字段承载，不当物理主键 | 硬要求 | **不变** |
 | 禁止 parse 失败兜底默认值 | 硬要求 | **不变** |
 | 跨模块禁止 `id.to_string()` → 再 parse 往返 | 硬要求 | **不变** |
+| 枚举字段持久层 MUST 用数值类型（`int2`/`int4`）、禁字符串列；jsonb 内枚举字段亦存数值 | 硬要求 | **不变** |
 | 具体类型映射表（`uuid::Uuid`、`chrono::DateTime<Utc>`、`rust_decimal::Decimal`…） | 形态 | **替换**为目标语言的等价类型 |
 | `parse_*_field` helper 签名 | 形态 | **替换**为目标语言的错误类型与惯用签名 |
 | `sqlx::FromRow` / `bind()` 相关条款 | 形态 | **替换**为目标驱动的行映射机制 |

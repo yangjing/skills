@@ -39,9 +39,11 @@ metadata:
 | 分页口径、cursor / offset 选择、页码控件桥接 | [SPECIFICATION §15](references/SPECIFICATION.md#15-分页) | — |
 | 兼容性、破坏性变更、演进窗口 | [SPECIFICATION §11](references/SPECIFICATION.md#11-兼容性与演进跨边界默认兼容模式) | — |
 | 质量门禁、测试分层、UAT 记录纪律 | [SPECIFICATION §13](references/SPECIFICATION.md#13-质量门禁通用) | — |
+| **维护 / 编写 UAT 文档、覆盖矩阵、自动化证据映射、判定「UAT 已覆盖 / 已签收」** | [SPECIFICATION §13.3](references/SPECIFICATION.md#133-uat-与自动化测试的边界auto-证据规则)（UAT ≠ 自动化测试；AUTO 证据 ≠ 签收） | — |
 | 执行计划归档、规则回流 | [SPECIFICATION §4.6](references/SPECIFICATION.md#46-执行计划归档回流) | — |
 | 拆迭代任务、定义契约包、代码生成链、迭代收尾 checklist | [spec-driven-development](references/spec-driven-development.md) | [protobuf-connectrpc](stacks/protobuf-connectrpc.md) §2.3 |
 | **评审模块设计 / 判定是否重构 / 新增 service 或 class / 写或改代码注释 / PR 判断代码质量** | [design-philosophy](references/design-philosophy.md)（深模块、信息隐藏、设计两次、十二气味；注释准入 = §8） | — |
+| **是否加抽象 / 新依赖 / 新包 / 重写、MVP 范围裁剪、核心架构能否用临时方案、过时代码处置、改 DB schema·API·存储配置是否需审批** | [design-philosophy §14](references/design-philosophy.md#14-实现与依赖取舍基线yagni--依赖最小化--工程纪律)（YAGNI / 依赖最小化 / 工程纪律） | — |
 | 新增或重命名概念 / 字段 / 枚举 / 权限码 / 路由；命名争议 | [naming-conventions](references/naming-conventions.md) | [react-tanstack-antd](stacks/react-tanstack-antd.md) §5（路由命名） |
 | 设计跨服务依赖、选通信协议、定复制边界、**边界信任模型** | [service-dependency-contract](references/service-dependency-contract.md)（信任模型 = §4.6） | [protobuf-connectrpc](stacks/protobuf-connectrpc.md) §2.2 |
 | 后端模块结构、新增 crate / 包、**字段类型落哪层**、handler 里写 SQL 类问题 | [backend-layering](references/backend-layering.md)（类型分层 = §3.5） | [rust-postgres](stacks/rust-postgres.md) |

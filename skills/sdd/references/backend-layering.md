@@ -151,11 +151,26 @@ api -> application -> domain -> infra
 | `JSONB` | `serde_json::Value`（结构化）或 `String`（透传） | `string`（JSON） |
 | `DECIMAL(p,s)` / `NUMERIC(p,s)`（金额/费用） | `rust_decimal::Decimal` / `Option<Decimal>` | `string`（`DecimalString`） |
 | `TEXT` / `VARCHAR` | `String` / `Option<String>` | `string` |
-| 业务 enum (CHECK 约束) | Rust enum（带 `parse` / `as_str` 双向函数） | proto enum |
+| 业务 enum (CHECK 约束) | native 整数（`i16` / `i32`），值为上游契约判别数 | proto enum |
 
 > wire 层日期 / 时间格式的精确定义见 [SPECIFICATION.md](./SPECIFICATION.md) §6，本文不重述。
 > 金额/费用字段的命名、precision/scale、币种与前端 `DecimalString` 等具体契约由各项目在自身 field-contracts overlay 文档中定义；本文只规范分层与类型映射。
-> 取值受限字段（枚举 / 有界值集）的落库形态选择（`SMALLINT` / `VARCHAR + CHECK` / `CREATE DOMAIN`）与 `proto enum ↔ domain enum ↔ 数据库` 的映射纪律 MUST 由项目 overlay 定义；本表末行仅为类型摘要。
+> 取值受限字段（枚举 / 有界值集）落库形态的硬要求与 `proto enum ↔ domain enum ↔ 数据库` 的映射纪律见下方「枚举字段持久层形态（强制）」；具体宽度（`int2` / `int4`）、三层映射表、jsonb 内枚举字段的处理 MUST 由项目 overlay 定义。
+
+**枚举字段持久层形态（强制）**：
+
+跨边界的枚举语义字段（状态 / 类型 / 分类 / 级别 / 来源 / 阶段等有界值集，无论是否有对应 proto enum）在持久层 MUST 满足：
+
+- **DB 列 MUST 用数值类型**（`SMALLINT` / `INTEGER`）；MUST NOT 用 `VARCHAR` / `TEXT` 字符串列存枚举判别值，MUST NOT 用 PG 原生 `CREATE TYPE ... AS ENUM`（值集演进需 `ALTER TYPE`，与数值列的 `CHECK IN (...)` 相比迁移代价高且不可复用 bitmap 索引）。值对齐上游契约的判别数（proto enum wire number，或仓内枚举的判别整数）。
+- **CHECK 约束 MUST 排除判别值为 0 的占位变体**（proto 的 `*_UNSPECIFIED = 0`、或领域 enum 的默认占位）：DB 只存有效业务值，占位值不出现在物理行。语义与字符串方案下 CHECK 不含占位字面量一致。
+- **jsonb 内的枚举字段同样 MUST 存数值**（不是字符串 key）：从 jsonb 提取时走数值路径（`as_i64()` → `as i32`），MUST NOT 走 `as_str()` + 字符串 match。涉及该 jsonb 字段的表达式索引相应用 `(col->>'field')::int` 或 `(col->'field')::int`。
+- **domain / application / infra 层 MUST 以原生整数承载**（`i16` / `i32`），与 DB 列宽度对齐；MUST NOT 在这三层之间用 `String` 传递枚举值。`api` 层负责 wire（proto enum / JSON string）↔ native 整数的双向转换。
+- **proto ↔ DB 映射纪律**：DB 存的数值 == proto wire number，故 `EnumValue::from(row_val as i32)` 可直接还原 proto enum，MUST NOT 手写逐值 match 的 `fn parse_xxx(&str)` 转换层。反向（proto → DB）取 `to_i32() as i16`。
+- **无 proto 的内部状态枚举**（基础设施层自有的状态机，如任务队列状态）MUST 在代码层定义 `const` 常量对齐 DB 数值约定，并在 schema CHECK 与代码注释双向标注，MUST NOT 让 DB 与代码各持一套魔数。
+
+**理由**：数值稳定（改 enum 字面名不影响已存数据与索引）、存储占用小（`int2` 2 字节定长 vs `VARCHAR` 变长）、B-tree 索引更紧凑、可应用 bitmap 索引。字符串方案的「可读性」是伪命题——业务用户消费的是有业务语义的映射值（尤其多语言场景），不直接读 DB 字面；程序员的直接读库场景随 AI 辅助开发减少，且数值 + schema 注释的可读性不劣于字符串。
+
+> wire JSON 序列化方向不在本规范约束范围：protobuf JSON Mapping 规范要求 enum 序列化为字符串名（数字仅作输入被接受），这是协议层要求，与持久层存数值正交。
 
 **ID 主键类型（UUID 或 BIGINT，二选一）**：
 

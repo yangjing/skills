@@ -82,16 +82,31 @@ PEP 723 自包含脚本，零第三方依赖——门禁不该因为装不上包
       承载，改一个章节标题就能静默制造一批死锚点，而这类漂移只在有人点开时才暴露。
       docsite 子树本就整树跳过，故自动生成锚点的误报面不在扫描范围内。
 
+  DOC_GOV_CANDIDATE_ALLOWLIST
+      CANDIDATE 白名单文件路径（相对 DOC_GOV_ROOT 或绝对路径）；未设置时默认
+      `<ROOT>/.doc-gov-candidate-allowlist`（不存在则不启用）。
+      逐行登记人工甄别后确认无需处理的 `src → token` 对，行格式与脚本输出一致
+      （可直接粘贴 CANDIDATE 行，`CANDIDATE` 前缀与反引号可有可无）：
+
+          CANDIDATE  docs/specs/README.md  →  `conceptual-entity-model.md`
+
+      `#` 开头的行视为注释。白名单只压制 CANDIDATE 输出，不影响 BROKEN 判定。
+      条目防腐由脚本自动承担：一轮扫描中未被消费的条目（引用已消失，或目标已落地、
+      豁免变多余）会以 `STALE` 报出提醒回删（非阻断）。
+
 除 markdown `[text](path)` 链接外，额外做两类反引号纯文本引用校验，二者严重性不同：
 
   - `` `ADR-NNNN` `` 编号——按 DOC_GOV_ADR_DIR 目录下是否存在对应 `NNNN-*.md` 文件校验，
     计入 BROKEN（硬失败，影响退出码）。此类引用格式单一、误报率低。
-  - `` `foo.md` `` / `` `docs/a/b.md` `` 文件名或路径——含路径分隔符时按仓库根 / 引用
-    来源目录两种方式解析；纯文件名在全仓（跳过 SKIP_DIRS）按 basename 查找。计入
-    CANDIDATE（非阻断，不影响退出码），因为同样的写法既可能是过期引用，也可能是
-    "该文件届时会有"的前瞻性提及（如 overlay 登记的 TODO 落地路径）或纯粹的举例性
-    文字（如 SPECIFICATION.md 用 `` `xx.md` `` 说明命名模式）——无法仅凭文本形态可靠
-    区分，需人工判断，因此不当作硬 gate。
+  - `` `foo.md` `` / `` `docs/a/b.md` `` 文件名或路径——含路径分隔符时依次按仓库根 /
+    引用来源目录 / **末段对齐**（token 路径段与仓内某 `.md` 相对路径尾部段完全一致
+    且命中唯一，如 `` `specs/x/main.md` `` → `docs/specs/x/main.md`）三种方式解析；
+    纯文件名在全仓按 basename 查找。计入 CANDIDATE（非阻断，不影响退出码），因为
+    同样的写法既可能是过期引用，也可能是"该文件届时会有"的前瞻性提及（如 overlay
+    登记的 TODO 落地路径）或纯粹的举例性文字（如 SPECIFICATION.md 用 `` `xx.md` ``
+    说明命名模式）——无法仅凭文本形态可靠区分，需人工判断，因此不当作硬 gate。
+    经人工甄别确认无需处理的条目可登记进 CANDIDATE 白名单（见
+    DOC_GOV_CANDIDATE_ALLOWLIST），登记后不再重报，保证新增候选不被存量噪声淹没。
 
 不处理无扩展名的裸 slug / 标题提及（如"TCF workflow mapping"），也不处理未加任何
 反引号 / 链接标记的纯文本路径提及——两者都无法可靠区分"应为文件名"与普通文字，
@@ -393,25 +408,50 @@ def extract_backtick_adr_refs(md: Path) -> list[str]:
 
 
 _BASENAME_INDEX: dict[str, list[Path]] | None = None
+_MD_PATH_INDEX: list[Path] | None = None
 
 
-def _basename_index() -> dict[str, list[Path]]:
-    """全仓（跳过 SKIP_DIRS）文件名 → 路径列表索引，供纯文件名反引号引用解析；只建一次。"""
-    global _BASENAME_INDEX
-    if _BASENAME_INDEX is not None:
-        return _BASENAME_INDEX
-    index: dict[str, list[Path]] = {}
+def _target_index() -> tuple[dict[str, list[Path]], list[Path]]:
+    """全仓引用目标索引：(basename → 路径列表, 全部 `.md` 相对路径列表)；只建一次。
+
+    与扫描源不同：`.agents` 从 SKIP_DIRS 里豁免——skill 内部树不参与外部审计（不作为
+    扫描源），但它是合法的引用目标（如 CLAUDE.md 引 sdd references）。`.claude` 保持
+    跳过：多为 `.agents` 的 symlink 镜像，纳入只会制造重复命中。
+    """
+    global _BASENAME_INDEX, _MD_PATH_INDEX
+    if _BASENAME_INDEX is not None and _MD_PATH_INDEX is not None:
+        return _BASENAME_INDEX, _MD_PATH_INDEX
+    basename: dict[str, list[Path]] = {}
+    md_paths: list[Path] = []
+    skip = {d for d in SKIP_DIRS if d != ".agents"}
     for dirpath, dirnames, filenames in os.walk(ROOT):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        dirnames[:] = [d for d in dirnames if d not in skip]
         for fn in filenames:
-            index.setdefault(fn, []).append((Path(dirpath) / fn).relative_to(ROOT))
-    _BASENAME_INDEX = index
-    return index
+            rel = (Path(dirpath) / fn).relative_to(ROOT)
+            basename.setdefault(fn, []).append(rel)
+            if fn.endswith(".md"):
+                md_paths.append(rel)
+    _BASENAME_INDEX = basename
+    _MD_PATH_INDEX = md_paths
+    return _BASENAME_INDEX, _MD_PATH_INDEX
+
+
+def _segments_match_tail(path_parts: tuple[str, ...], token_segments: tuple[str, ...]) -> bool:
+    """token 路径段与目标相对路径的尾部段逐段一致（`a/b.md` 匹配 `docs/x/a/b.md`）。"""
+    return len(path_parts) > len(token_segments) and path_parts[-len(token_segments):] == token_segments
+
+
+def _suffix_resolve(token: str) -> bool:
+    """末段对齐解析：命中**唯一**才视为可解析；命中多个 = 简写有歧义，留给人工判断。"""
+    _, md_paths = _target_index()
+    tseg = tuple(token.split("/"))
+    matches = [p for p in md_paths if _segments_match_tail(p.parts, tseg)]
+    return len(matches) == 1
 
 
 def resolve_md_token(src: Path, token: str) -> bool:
-    """反引号内 `.md` 文件名 / 路径引用是否存在。含路径分隔符时按仓库根 / 引用来源目录
-    两种方式解析；纯文件名时在全仓 basename 索引中查找。"""
+    """反引号内 `.md` 文件名 / 路径引用是否存在。含路径分隔符时依次按仓库根 / 引用来源
+    目录 / 末段对齐（唯一命中）三种方式解析；纯文件名时在全仓 basename 索引中查找。"""
     if "/" in token:
         for base in (ROOT, (ROOT / src).parent):
             try:
@@ -419,8 +459,8 @@ def resolve_md_token(src: Path, token: str) -> bool:
                     return True
             except Exception:
                 continue
-        return False
-    return token in _basename_index()
+        return _suffix_resolve(token)
+    return token in _target_index()[0]
 
 
 def resolve_adr_token(num: str) -> bool:
@@ -429,6 +469,41 @@ def resolve_adr_token(num: str) -> bool:
         return False
     prefix = f"{num}-"
     return any(p.name.startswith(prefix) for p in adr_dir.glob("*.md"))
+
+
+_ALLOWLIST_LINE_RE = re.compile(r"^(?:CANDIDATE\s+)?(\S+)\s*→\s*`?([^`\s]+)`?$")
+
+
+def _load_candidate_allowlist() -> set[tuple[str, str]]:
+    """CANDIDATE 白名单：人工甄别后确认无需处理的 `(src, token)` 对，登记后不再重报。
+    行格式与脚本输出一致（可直接粘贴 CANDIDATE 行）；`#` 开头为注释。"""
+    raw = os.environ.get("DOC_GOV_CANDIDATE_ALLOWLIST", "").strip()
+    p = Path(raw) if raw else ROOT / ".doc-gov-candidate-allowlist"
+    if not p.is_absolute():
+        p = ROOT / p
+    try:
+        lines = p.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return set()
+    allowed: set[tuple[str, str]] = set()
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = _ALLOWLIST_LINE_RE.match(line)
+        if m:
+            allowed.add((m.group(1), m.group(2)))
+    return allowed
+
+
+def _stale_reason(src: str, token: str) -> str:
+    """白名单条目未被消费的原因（供人工回删时参考）。"""
+    src_path = ROOT / src
+    if not src_path.exists():
+        return "源文件已不存在"
+    if resolve_md_token(Path(src), token):
+        return "引用现已可解析（目标已落地），豁免多余"
+    return "源文中已无此引用（已改写或改名）"
 
 
 def self_test() -> int:
@@ -468,9 +543,17 @@ def self_test() -> int:
         expect("重名章节" in slugs and "重名章节-1" in slugs, "重名标题的 -N 后缀规则错")
         expect("代码块内的标题" not in slugs, "围栏代码块内的 # 被误当作标题")
 
+    # 末段对齐是纯函数，规则写错会把 stale 简写误判为可解析（漏报），钉住它。
+    expect(_segments_match_tail(("docs", "specs", "x", "main.md"), ("x", "main.md")),
+           "末段对齐应命中：尾部段逐段一致")
+    expect(not _segments_match_tail(("docs", "specs", "hylx-x", "main.md"), ("x", "main.md")),
+           "末段对齐不得跨段截配（hylx-x ≠ x）")
+    expect(not _segments_match_tail(("x", "main.md"), ("x", "main.md")),
+           "末段对齐要求目标路径更长（等长应已按仓根解析）")
+
     if fails:
         return 2
-    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过 均正确）")
+    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过 / 末段对齐 均正确）")
     return 0
 
 
@@ -484,12 +567,14 @@ Configuration is via DOC_GOV_* environment variables only (see module docstring)
   DOC_GOV_ROOT, DOC_GOV_INCLUDE, DOC_GOV_INCLUDE_EXTRA,
   DOC_GOV_SKIP_DIRS, DOC_GOV_SKIP_DIRS_EXTRA,
   DOC_GOV_SITE_CONFIGS[_EXTRA], DOC_GOV_NO_SITE_AUTOSKIP, DOC_GOV_VERBOSE,
-  DOC_GOV_ADR_DIR, DOC_GOV_HISTORICAL_PREFIXES[_EXTRA], DOC_GOV_NO_ANCHOR_CHECK
+  DOC_GOV_ADR_DIR, DOC_GOV_HISTORICAL_PREFIXES[_EXTRA], DOC_GOV_NO_ANCHOR_CHECK,
+  DOC_GOV_CANDIDATE_ALLOWLIST
 
 Output:
   BROKEN     <file>  →  <link>   (markdown links + anchors + ADR refs; hard failure)
   CANDIDATE  <file>  →  <token>  (backtick *.md refs; informational only)
-Exit codes:  0 = no BROKEN (CANDIDATEs may remain) · 1 = BROKEN found
+  STALE      <file>  →  <token>  (allowlist entries not consumed this run; prune them)
+Exit codes:  0 = no BROKEN (CANDIDATEs / STALE may remain) · 1 = BROKEN found
              2 = usage error or self-test failure
 """
 
@@ -515,6 +600,9 @@ def main() -> int:
 
     broken: list[tuple[str, str]] = []
     candidates: list[tuple[str, str]] = []
+    allowlist = _load_candidate_allowlist()
+    consumed: set[tuple[str, str]] = set()
+    suppressed = 0
     files = list(iter_md_files())
     for md in files:
         for url in extract_links(md):
@@ -538,8 +626,13 @@ def main() -> int:
             if not resolve_adr_token(num):
                 broken.append((str(md), f"`ADR-{num}`"))
         for token in extract_backtick_md_refs(md):
-            if not resolve_md_token(md, token):
-                candidates.append((str(md), f"`{token}`"))
+            if resolve_md_token(md, token):
+                continue
+            if (str(md), token) in allowlist:
+                consumed.add((str(md), token))
+                suppressed += 1
+                continue
+            candidates.append((str(md), f"`{token}`"))
 
     exit_code = 0
     if broken:
@@ -552,10 +645,21 @@ def main() -> int:
 
     if candidates:
         print(f"\n候选待核实引用（不计入 broken、不影响退出码，需人工判断是否为过期引用 / "
-              f"前瞻 TODO / 举例性文字）：")
+              f"前瞻 TODO / 举例性文字；甄别后确认无需处理的请登记进 CANDIDATE 白名单）：")
         for src, token in candidates:
             print(f"CANDIDATE  {src}  →  {token}")
         print(f"Total candidates: {len(candidates)}")
+    if suppressed:
+        print(f"（另有 {suppressed} 条候选经白名单豁免，不再重报）")
+
+    # 白名单防腐：一轮扫描下来未被消费的条目 = 引用已消失或豁免已多余，报 STALE 提醒
+    # 回删（非阻断——过期条目不产生错误结论，只是噪声，但留着会让白名单失去可信度）。
+    stale = sorted(allowlist - consumed)
+    if stale:
+        print(f"\n白名单过时条目（不影响退出码，请回删 .doc-gov-candidate-allowlist 对应行）：")
+        for src, token in stale:
+            print(f"STALE  {src}  →  `{token}`  （{_stale_reason(src, token)}）")
+        print(f"Total stale: {len(stale)}")
 
     return exit_code
 
