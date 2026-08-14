@@ -4,7 +4,7 @@
 
 本文件是**项目中立**的工作流定义。涉及"权威源 / 系统简称 / 实现约束"具体名称的位置，MUST 由调用方按自己项目的 overlay 填入（见 [`./REFERENCE.md`](./REFERENCE.md)）。
 
-> **overlay 加载（三阶段共用，约定优于配置）**：执行任一阶段前，若 skill 目录同级存在 `<skill-name>.overlay.md`（本 skill 即 `doc-governance.overlay.md`；skill 经 symlink 镜像时以 resolve symlink 后的真实安装目录同级为准），MUST 先读取它作为权威源 / 概念归属 / 协作边界 / 实现约束的项目输入；未找到时由调用方在调用上下文提供。
+> **overlay 加载（三阶段共用，约定优于配置）**：执行任一阶段前，若 skill 目录同级存在 `<skill-name>.overlay.md`（本 skill 即 `doc-governance.overlay.md`），MUST 先读取它作为权威源 / 概念归属 / 协作边界 / 实现约束的项目输入；未找到时由调用方在调用上下文提供。当 skill 经 symlink 镜像（含 vendored 进 submodule 的情况）时，**调用方 skills 树内（`.agents/skills/` 下 symlink 同级）的 overlay 优先**于 resolve symlink 后的真实安装目录同级——前者承载消费方项目落地指针。
 
 ## 阶段 1：审计（audit）
 

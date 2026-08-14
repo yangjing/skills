@@ -5,7 +5,7 @@ SQL 层：`ModelManager<C>` 类型化上下文、`Dbx` 连接/事务封装、`Sq
 
 ## ⚠️ v0.3 破坏性变更（从 v0.2 迁移必读）
 
-crate 改名，且整个 sea-query 栈被删除（commit `bbe2bbb`）：
+crate 改名，且整个 sea-query 栈被删除：
 
 | v0.2                                  | v0.3                                        |
 | ------------------------------------- | ------------------------------------------- |
@@ -171,7 +171,7 @@ dbx.commit_txn().await?;
 
 > ⚠️ `ModelManager::transaction` / `read_transaction` **只做 `BEGIN; …; COMMIT;`，
 > 不注入 session vars**。RLS 应用必须用叠加了 `set_config(...)` 的应用层 helper
-> （本仓即 `hylx_core::db::with_read_txn` / `with_write_txn` / `with_*_txn_pg`），
+> （本仓即 `hetu_core::db::with_read_txn` / `with_write_txn` / `with_*_txn_pg`），
 > 直接用框架方法跑 RLS 表 = 跨租户读放大。
 
 嵌套 `read_transaction` 不会把外层写事务降级为只读（SAVEPOINT 继承外层读写模式）。

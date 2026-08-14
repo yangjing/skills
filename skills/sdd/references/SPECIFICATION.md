@@ -231,7 +231,7 @@ Compliance 分级判据（按文档所辖 Contract Surface 与数据面的最高
 4. **Apply**：只迁移仍被当前实现和契约验证的规则。技术实现约束 MUST 并入设计文档或项目 overlay；产品 / 功能行为 MUST 并入产品规格；可跨项目复用的协作规则 MUST 并入 SDD 文档集。一次性执行步骤、分支名、验证日志、临时 TODO 和过期路径 MUST 留在历史材料。
 5. **Conflict / Stop**：计划与当前代码、契约或测试冲突时，MUST 先确认根因，并以当前实现和契约为准；无法判定现行真相时 MUST 停止并请求维护者决策。
 6. **Output**：归档总结 MUST 点名已回流的 SSOT、保留为历史参考的文件、删除或标注的过时口径；**Assess 判为无需回流的去向 MUST 记录判定与理由**，供后续治理免于重复判断。
-7. **MUST NOT**：MUST NOT 为满足回流步骤复制已在 SSOT 的内容；MUST NOT 把代码路径、表结构、索引名、函数名、PR / commit / 批次 / 实施阶段写进产品规格与设计文档；MUST NOT 让现行 specs / designs / overlays / UAT / ADR / TODO 链接完成计划作为规范依据。
+7. **MUST NOT**：MUST NOT 为满足回流步骤复制已在 SSOT 的内容；MUST NOT 把代码路径、表结构、索引名、函数名、PR / commit / 批次 / 实施阶段写进产品规格与设计文档；MUST NOT 让现行 specs / designs / overlays / UAT / ADR / TODO 链接完成计划作为规范依据；**回流到 SSOT 的事实结论 MUST 自包含——MUST NOT 携带对源归档文件的指针引用（文件名、`§N` 节号、`见 <归档项>` 锚点），因为归档文件会被清理删除，残留引用即断链**。
 
 **归档清理**：完成计划中的执行步骤、批次拆分、commit、测试日志和临时裁定 SHOULD 删除，或保留在显式历史归档中；若保留，文档头部 MUST 标记为历史参考，且 MUST NOT 被索引挂为权威入口。删除或移动完成计划后 MUST 跑文档链接校验——broken link 即回流未完成的证据。
 
@@ -265,6 +265,12 @@ When 该计划转为 completed
 Then 维护者 MUST 逐去向确认后判定「无需回流」
 And 维护者 MUST 把该判定与理由记录在计划中，供后续免于重复判断
 And 维护者 MUST NOT 为满足回流步骤而复制已有规范
+
+Scenario: 回流的事实结论携带了对源归档文件的指针引用
+Given 维护者把一个事实结论回流到现行 SSOT，但结论文字里保留了 "见 archived/<plan>.md §N" 或 "<plan> §N" 形态的源指针
+When 后续归档清理删除了该归档文件
+Then SSOT 中的指针引用即断链——broken link 是回流未自包含的证据
+And 维护者 MUST 在回流时只迁移自包含的事实结论，MUST NOT 携带文件名、节号或 "见 <归档项>" 锚点
 ```
 
 ## 5. 命名与字段映射（强制）

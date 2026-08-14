@@ -126,7 +126,7 @@ stateDiagram-v2
 
 connectrpc 0.6 公开 API 中"自定义 connector"（配 connect-timeout / keepalive / user_timeout）与"自定义 h2 builder"（配 h2 PING）**互斥**，且 connectrpc 为第三方 crate 不可改；connect-timeout + user_timeout 必须走 connector，故半开探测由 TCP 层承担。TCP 探活是**内核层**、不受应用 CPU 停顿影响 → 不误杀健康的稀疏长流（如 voice bidi），并保活 NAT / LB 映射。bin↔bin 直连内网 h2c（无中间 L7 代理），TCP 层探活等效。仅当 bin 间出现吞 TCP keepalive 的 L7 代理时再议 h2 PING。
 
-> 通用行为契约见 [service-dependency-contract.md §4.4](../../sdd/references/service-dependency-contract.md)；项目落地指针见 skill 目录同级的 `fusions.overlay.md`。
+> 通用行为契约见 sdd skill 的 `service-dependency-contract` §4.4（按 skill 名发现加载）；项目落地指针见 skill 目录同级的 `fusions.overlay.md`（消费方仓内）。
 
 ## AuthLayer — 认证中间件
 
@@ -220,7 +220,7 @@ let router = Router::new()
 
 ```rust
 pub struct TrustedSubject {
-    /// 谁为这个主体背书，进日志 / 审计，如 "hylx-careos:system"
+    /// 谁为这个主体背书，进日志 / 审计，如 "hetu-careos:system"
     pub principal: String,
     /// 向下游注入的身份 header，如 [("x-tenant-id", "3")]。
     /// 由验证方从它验过的东西推导，AuthLayer 绝不自己发明。

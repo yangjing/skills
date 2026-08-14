@@ -100,6 +100,7 @@ sdd/
 │   ├── frontend-conventions.md  # route / Provider / 远程数据 / 金额日期渲染
 │   └── i18n-conventions.md      # 多语言能力 / 命名空间 / fallback
 ├── stacks/                      # 技术栈落地形态（换栈就变）
+│   ├── README.md                # 本层导览：现有适配层索引 + 新增适配层步骤 + 归属判断
 │   ├── protobuf-connectrpc.md
 │   ├── rust-postgres.md
 │   └── react-tanstack-antd.md

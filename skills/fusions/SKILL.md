@@ -121,7 +121,7 @@ Rust / Axum / sqlx conventions.
   Caveat: `mm.transaction` / `read_transaction` are a bare `BEGIN; …; COMMIT;`
   — they do **not** issue `set_config(...)`. An RLS application must go through
   its own helper that layers the session vars on top (here:
-  `hylx_core::db::with_read_txn` / `with_write_txn`).
+  `hetu_core::db::with_read_txn` / `with_write_txn`).
 - **Closure transactions support SAVEPOINT nesting.** Nested
   `mm.transaction(|mm| async move { ... }).await` becomes a SAVEPOINT
   automatically; commit/rollback is handled for you.
@@ -373,7 +373,7 @@ dbx.commit_txn().await?;
 
 RLS applications must not call `mm.transaction` directly — it is a bare
 `BEGIN; …; COMMIT;` with no `set_config(...)`. Use the application helper that
-layers the session vars on top (in this repo: `hylx_core::db::with_read_txn` /
+layers the session vars on top (in this repo: `hetu_core::db::with_read_txn` /
 `with_write_txn` and their `_pg` variants).
 
 ### Repo function (replaces BMC)

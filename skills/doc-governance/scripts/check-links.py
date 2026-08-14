@@ -241,6 +241,12 @@ LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 # 锚定反引号内容开头：避免 `<skill-name>.overlay.md`、`*-architecture.md` 这类占位符 /
 # glob 模式被截断误配为字面文件名（截断后的 "overlay.md"/"architecture.md" 并非真实引用）。
+#
+# 已知限制（CJK 词边界盲区）：末尾 `\b` 在 ASCII→CJK 边界处不匹配——当反引号 `.md`
+# 路径紧跟中文字符时（如 `` `foo/bar.md`` 中文 ''），`\b` 失配导致整条引用被跳过，
+# 不进入 CANDIDATE。受影响的引用不会误报，但也不会被检出为失效引用。当前全仓
+# CLAUDE.md / AGENTS.md 的此类引用经人工核验均有效；若将来 CJK 路径引用频繁出现，
+# 考虑放宽为 ``(?=\.md$|[^\w])`` 并补 self-test。
 MD_TOKEN_RE = re.compile(r"^([\w][\w./-]*\.md)\b")
 ADR_TOKEN_RE = re.compile(r"\bADR-(\d{4})\b")
 
@@ -546,8 +552,8 @@ def self_test() -> int:
     # 末段对齐是纯函数，规则写错会把 stale 简写误判为可解析（漏报），钉住它。
     expect(_segments_match_tail(("docs", "specs", "x", "main.md"), ("x", "main.md")),
            "末段对齐应命中：尾部段逐段一致")
-    expect(not _segments_match_tail(("docs", "specs", "hylx-x", "main.md"), ("x", "main.md")),
-           "末段对齐不得跨段截配（hylx-x ≠ x）")
+    expect(not _segments_match_tail(("docs", "specs", "hetu-x", "main.md"), ("x", "main.md")),
+           "末段对齐不得跨段截配（hetu-x ≠ x）")
     expect(not _segments_match_tail(("x", "main.md"), ("x", "main.md")),
            "末段对齐要求目标路径更长（等长应已按仓根解析）")
 

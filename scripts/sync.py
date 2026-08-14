@@ -10,20 +10,29 @@ sync.py — 把源仓库中的 skill 同步到本仓库（分发快照）。
 跑本脚本把最新内容覆盖到本仓库 skills/ 下。
 
 【映射表】不在代码里写死，由本地配置文件管理（每人各异，不入 git）：
-  sync.local.csv   两列：name,src  （src 支持 ~ 与 $ENV 展开）
+  sync.local.csv   两列或三列：name,src[,mode]  （src 支持 ~ 与 $ENV 展开）
+    mode=sync（默认，可省略）  参与同步
+    mode=watch                仅监控漂移（--check 提示差异，不同步、不阻断退出码）
+  同一 skill 可登记多行（多个仓库各有一份副本时）：
+    - 多个 sync 行 → 同步 / 检测前按「源的最后迭代时间」择新：git 仓库取该目录的
+      最后提交时间（未提交的工作区改动不计，重 clone / checkout 不污染结果），
+      非 git 目录回退树内最新 mtime；并列取 CSV 中靠前的一行
+    - 落选 sync 行与 watch 行：--check 只提示与本仓库的差异，不阻断退出码
 配套样本见 sync.local.example.csv。
 
 【四种模式】
   uv run scripts/sync.py                 # 同步配置中全部 skill（默认）
-  uv run scripts/sync.py fusions ebook   # 仅同步配置中指定 skill（按 name 过滤，可多个）
+  uv run scripts/sync.py fusions ebook   # 仅同步配置中指定的 skill（按 name 过滤，可多个）
   uv run scripts/sync.py --src <path>    # 临时同步未登记的源（可多次：--src a --src b）
-  uv run scripts/sync.py --check         # 仅检测漂移，不改文件（CI 友好；漂移返回 1）
-  uv run scripts/sync.py --list          # 列出配置中的映射
+  uv run scripts/sync.py --check         # 仅检测漂移，不改文件（CI 友好；当前同步源漂移返回 1，
+                                         #   watch / 落选源差异只提示不阻断）
+  uv run scripts/sync.py --list          # 列出配置中的映射（含 mode）
 
-【同步规则】（迁移自旧 sync.sh，保证等价）
+  【同步规则】（迁移自旧 sync.sh，保证等价）
   - 复制源到 skills/<name>/，已存在则覆盖（dirs_exist_ok=True）
-  - 排除 README.md：本仓库的每个 skill README.md 是人工为分发写的，源里没有，不覆盖
-  - 排除 __pycache__：Python 运行缓存，不应进分发快照
+  - 仅在 skill 根目录排除 README.md：根 README 是本仓库人工为分发写的，源里没有，
+    不覆盖；源内子目录的 README.md 属于 skill 本体，照常同步
+  - 排除 __pycache__（任意层级）：Python 运行缓存，不应进分发快照
   - 不删本仓库独有文件（无 --delete 语义）
   - 幂等：内容无变化时不产生改动，git diff 干净
 """
@@ -33,8 +42,11 @@ import argparse
 import csv
 import os
 import shutil
+import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 # ─── 定位仓库根目录（脚本无论从哪调用都能定位）──────────────────────
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -42,9 +54,21 @@ SKILLS_DIR = REPO_ROOT / "skills"
 CONFIG_PATH = REPO_ROOT / "sync.local.csv"
 EXAMPLE_PATH = REPO_ROOT / "sync.local.example.csv"
 
-# 复制时跳过这些名字：README.md 是本仓库人工写的分发说明（源里没有）；
-# __pycache__ 是 Python 运行缓存。
-EXCLUDE_NAMES = {"README.md", "__pycache__"}
+# 跳过规则：README.md 仅在 skill 根目录跳过——根 README 是本仓库人工写的分发说明
+# （源里没有）；子目录的 README.md 属于 skill 本体（如 sdd/stacks/README.md），必须同步。
+# __pycache__ 是 Python 运行缓存，任意层级都跳过。
+ROOT_EXCLUDE_NAMES = {"README.md"}
+EXCLUDE_NAMES = {"__pycache__"}
+
+# CSV 第三列 mode 的合法取值：sync 参与同步；watch 仅监控漂移。
+MODES = ("sync", "watch")
+
+
+class Entry(NamedTuple):
+    """sync.local.csv 的一行。"""
+    name: str
+    src: str   # 已展开 ~ / $ENV 的源路径
+    mode: str  # "sync" | "watch"
 
 # ─── 终端颜色 ──────────────────────────────────────────────────────
 if sys.stdout.isatty():
@@ -76,8 +100,8 @@ def expand_src(raw: str) -> str:
     return os.path.expanduser(os.path.expandvars(raw))
 
 
-def load_config() -> list[tuple[str, str]]:
-    """读取 sync.local.csv，返回 [(name, expanded_src), ...]。
+def load_config() -> list[Entry]:
+    """读取 sync.local.csv，返回 Entry 列表。
 
     缺文件或空配置时返回 [] 并在 stderr 给出指引（不抛异常，调用方按需处理）。
     """
@@ -90,7 +114,7 @@ def load_config() -> list[tuple[str, str]]:
         print(f"    {C_DIM}或用 --src <path> 临时同步一个未登记的源。{C_RESET}", file=sys.stderr)
         return []
 
-    rows: list[tuple[str, str]] = []
+    rows: list[Entry] = []
     with CONFIG_PATH.open(newline="", encoding="utf-8") as fh:
         # 注意：手动按行读取而非 csv.reader，便于在 csv 解析前跳过注释行与空行。
         # csv.reader 会在遇到含逗号的字段时切分，注释里的逗号会干扰判断。
@@ -101,37 +125,43 @@ def load_config() -> list[tuple[str, str]]:
             if not stripped or stripped.startswith("#"):
                 continue
             row = next(csv.reader([line]))
-            # 跳过表头（首数据行若形如 name,src 视为表头）
+            # 跳过表头（首数据行若形如 name,src 视为表头，第三列表头可选）
             if not header_seen:
                 if [c.strip().lower() for c in row[:2]] == ["name", "src"]:
                     header_seen = True
                     continue
                 header_seen = True
             if len(row) < 2:
-                err(f"配置行格式错误（应为 name,src 两列）: {row}")
+                err(f"配置行格式错误（应为 name,src[,mode]）: {row}")
                 continue
             name = row[0].strip()
             src = expand_src(row[1].strip())
+            mode = row[2].strip().lower() if len(row) >= 3 else ""
+            if mode and mode not in MODES:
+                err(f"未知 mode（应为 sync / watch，可省略）: {row}")
+                continue
             if name:
-                rows.append((name, src))
+                rows.append(Entry(name, src, mode or "sync"))
     return rows
 
 
 # ─── 复制 / 漂移检测的核心 ─────────────────────────────────────────
-def should_skip(name: str) -> bool:
-    return name in EXCLUDE_NAMES
+def should_skip(name: str, at_root: bool = False) -> bool:
+    """at_root=True 表示该名字位于 skill 根目录（触发根级 README.md 排除）。"""
+    return name in EXCLUDE_NAMES or (at_root and name in ROOT_EXCLUDE_NAMES)
 
 
 def copy_skill(src: Path, dst: Path) -> None:
-    """把 src 复制到 dst（覆盖），跳过 README.md 与 __pycache__。
+    """把 src 复制到 dst（覆盖），根目录跳过 README.md、任意层级跳过 __pycache__。
 
     用 copytree(dirs_exist_ok=True) + 自定义 ignore 实现等价于
-    rsync -a --exclude README.md --exclude __pycache__。
+    rsync -a --exclude /README.md --exclude __pycache__。
     """
     dst.mkdir(parents=True, exist_ok=True)
 
-    def _ignore(_dir: Path, names: list[str]) -> list[str]:
-        return [n for n in names if should_skip(n)]
+    def _ignore(dir_visited: str, names: list[str]) -> list[str]:
+        at_root = Path(dir_visited) == src
+        return [n for n in names if should_skip(n, at_root)]
 
     shutil.copytree(src, dst, dirs_exist_ok=True, ignore=_ignore)
 
@@ -141,9 +171,10 @@ def dirs_equal(a: Path, b: Path) -> bool:
     def _walk(p: Path) -> dict[str, Path]:
         out: dict[str, Path] = {}
         for root, dirs, files in os.walk(p):
+            at_root = Path(root) == p
             dirs[:] = [d for d in dirs if not should_skip(d)]
             for f in files:
-                if should_skip(f):
+                if should_skip(f, at_root):
                     continue
                 fp = Path(root) / f
                 out[str(fp.relative_to(p))] = fp
@@ -163,9 +194,10 @@ def diff_listing(a: Path, b: Path) -> list[str]:
     def _walk(p: Path) -> dict[str, Path]:
         out: dict[str, Path] = {}
         for root, dirs, files in os.walk(p):
+            at_root = Path(root) == p
             dirs[:] = [d for d in dirs if not should_skip(d)]
             for f in files:
-                if should_skip(f):
+                if should_skip(f, at_root):
                     continue
                 fp = Path(root) / f
                 out[str(fp.relative_to(p))] = fp
@@ -183,6 +215,72 @@ def diff_listing(a: Path, b: Path) -> list[str]:
     return lines
 
 
+# ─── 多源语义：同名多行的分组与择新 ────────────────────────────────
+def group_by_name(entries: list[Entry]) -> list[tuple[str, list[Entry]]]:
+    """按 name 聚合（保持首次出现顺序）。"""
+    groups: dict[str, list[Entry]] = {}
+    for e in entries:
+        groups.setdefault(e.name, []).append(e)
+    return list(groups.items())
+
+
+def source_last_modified(src: Path) -> tuple[float, str]:
+    """取源的「最后迭代时间」，用于同名多 sync 行择新。
+
+    git 仓库取该目录的最后提交时间（未提交的工作区改动不计，重 clone /
+    重 checkout 也不会污染结果）；非 git 目录回退树内最新 mtime。
+    返回 (epoch 秒, 依据说明)；源缺失返回 (0.0, "源缺失")。
+    """
+    if not src.is_dir():
+        return 0.0, "源缺失"
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(src), "log", "-1", "--format=%cI", "--", "."],
+            capture_output=True, text=True, timeout=10, check=True,
+        )
+        iso = out.stdout.strip()
+        if iso:
+            return datetime.fromisoformat(iso).timestamp(), f"git 提交 {iso}"
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    newest = 0.0
+    for root, dirs, files in os.walk(src):
+        dirs[:] = [d for d in dirs if not should_skip(d)]
+        for f in files:
+            if should_skip(f):
+                continue
+            try:
+                newest = max(newest, (Path(root) / f).stat().st_mtime)
+            except OSError:
+                continue
+    return newest, f"mtime {datetime.fromtimestamp(newest).isoformat(timespec='seconds')}"
+
+
+def pick_sync_source(name: str, entries: list[Entry]) -> Entry | None:
+    """确定一个 skill 的当前同步源。
+
+    无 sync 行返回 None；唯一 sync 行直接用；多个 sync 行按
+    source_last_modified 择新（并列取 CSV 中靠前的一行），并打印择新依据。
+    """
+    sync_rows = [e for e in entries if e.mode == "sync"]
+    if not sync_rows:
+        return None
+    if len(sync_rows) == 1:
+        return sync_rows[0]
+    stamped = [(source_last_modified(Path(e.src)), e) for e in sync_rows]
+    best = 0
+    for i in range(1, len(stamped)):
+        if stamped[i][0][0] > stamped[best][0][0]:
+            best = i
+    log(f"{name}: {len(sync_rows)} 个同步源，择新（git 提交时间优先，回退 mtime）:")
+    for i, ((_, human), e) in enumerate(stamped):
+        if i == best:
+            print(f"    {human}  {e.src}  {C_GREEN}← 选中（最新）{C_RESET}")
+        else:
+            print(f"    {C_DIM}{human}  {e.src}{C_RESET}")
+    return stamped[best][1]
+
+
 def hint_src_missing(src: Path) -> None:
     """源目录缺失时打印定位提示。"""
     err(f"源目录不存在: {src}")
@@ -193,23 +291,22 @@ def hint_src_missing(src: Path) -> None:
 
 
 # ─── 各模式实现 ────────────────────────────────────────────────────
-def mode_list(config: list[tuple[str, str]]) -> int:
+def mode_list(config: list[Entry]) -> int:
     if not config:
         warn("配置为空（或文件缺失）。")
         return 0
-    print(f"{C_DIM}{'SKILL':<18}  SOURCE{C_RESET}")
-    print("-" * 60)
-    for name, src in config:
-        print(f"{name:<18}  {src}")
+    print(f"{C_DIM}{'SKILL':<18}  {'MODE':<6}  SOURCE{C_RESET}")
+    print("-" * 72)
+    for e in config:
+        print(f"{e.name:<18}  {e.mode:<6}  {e.src}")
     return 0
 
 
-def select_targets(config: list[tuple[str, str]], names: list[str]) -> list[tuple[str, str]]:
+def select_targets(config: list[Entry], names: list[str]) -> list[Entry]:
     """按 name 过滤配置，对未知 name 报错。"""
-    known = {n for n, _ in config}
-    out: list[tuple[str, str]] = []
+    out: list[Entry] = []
     for want in names:
-        match = [(n, s) for n, s in config if n == want]
+        match = [e for e in config if e.name == want]
         if not match:
             err(f"未知 skill: {want}（配置中未登记；用 --list 查看，或用 --src <path> 临时同步）")
             sys.exit(2)
@@ -217,12 +314,30 @@ def select_targets(config: list[tuple[str, str]], names: list[str]) -> list[tupl
     return out
 
 
-def run_check(targets: list[tuple[str, str]]) -> int:
-    log("检测漂移（源 → 本仓库，排除 README.md / __pycache__）…")
+def run_check(targets: list[Entry]) -> int:
+    log("检测漂移（源 → 本仓库，排除根 README.md / __pycache__）…")
     drifted = False
-    for name, src_raw in targets:
-        src = Path(src_raw)
-        dst = SKILLS_DIR / name
+    for name, entries in group_by_name(targets):
+        chosen = pick_sync_source(name, entries)  # 多个 sync 行时在此打印择新依据
+        if chosen is None:
+            warn(f"{name}: 未配置 sync 源，仅监控（不阻断）")
+        # 非当前源（watch 行 + 落选 sync 行）：只提示差异，不阻断退出码
+        for e in entries:
+            if e is chosen:
+                continue
+            src, dst = Path(e.src), SKILLS_DIR / e.name
+            label = "监控源" if e.mode == "watch" else "备选源"
+            if not src.is_dir():
+                print(f"  {C_YELLOW}!{C_RESET} {name}: {label}不存在（仅提示）: {src}")
+            elif not dst.is_dir():
+                print(f"  {C_YELLOW}!{C_RESET} {name}: {label}对应目录缺失（仅提示）: {dst}")
+            elif dirs_equal(src, dst):
+                print(f"  {C_DIM}· {name}: {label}一致: {src}{C_RESET}")
+            else:
+                print(f"  {C_YELLOW}!{C_RESET} {name}: {label}与本仓库不同（仅提示，不阻断）: {src}")
+        if chosen is None:
+            continue
+        src, dst = Path(chosen.src), SKILLS_DIR / name
         if not src.is_dir():
             hint_src_missing(src)
             drifted = True
@@ -242,16 +357,23 @@ def run_check(targets: list[tuple[str, str]]) -> int:
     if drifted:
         err("存在漂移，跑 uv run scripts/sync.py 同步。")
         return 1
-    ok("无漂移，所有 skill 与源一致。")
+    ok("无漂移（当前同步源全部一致）；监控 / 备选源差异仅提示，见上。")
     return 0
 
 
-def run_sync(targets: list[tuple[str, str]]) -> int:
-    log(f"同步 {len(targets)} 个 skill 到 {SKILLS_DIR}")
+def run_sync(targets: list[Entry]) -> int:
+    groups = group_by_name(targets)
+    log(f"同步 {len(groups)} 个 skill 到 {SKILLS_DIR}")
     had_error = False
-    for name, src_raw in targets:
-        src = Path(src_raw)
-        dst = SKILLS_DIR / name
+    for name, entries in groups:
+        for e in entries:
+            if e.mode == "watch":
+                print(f"  {C_DIM}· {name}: 监控源不同步: {e.src}{C_RESET}")
+        chosen = pick_sync_source(name, entries)
+        if chosen is None:
+            warn(f"{name}: 无 sync 源，跳过")
+            continue
+        src, dst = Path(chosen.src), SKILLS_DIR / name
         if not src.is_dir():
             hint_src_missing(src)
             had_error = True
@@ -337,8 +459,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--src", metavar="PATH", action="append", default=None,
                         help="临时同步一个未登记的源路径（dest 名取自源目录名）；可多次指定")
     parser.add_argument("--check", action="store_true",
-                        help="只检测漂移，不改文件（漂移返回 1）")
-    parser.add_argument("--list", action="store_true", help="列出配置中的映射")
+                        help="只检测漂移，不改文件（当前同步源漂移返回 1；watch / 备选源只提示）")
+    parser.add_argument("--list", action="store_true", help="列出配置中的映射（含 mode）")
     args = parser.parse_args(argv)
 
     if args.list:

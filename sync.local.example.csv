@@ -4,10 +4,17 @@ name,src
 # src 支持 ~ 与环境变量展开，如 ~/hylxos/.agents/skills/fusions 或 $CODE/books/...
 #
 # 左列 name = 本仓库 skills/ 下的目标目录名（须等于该 skill 的 SKILL.md frontmatter name）
-# 右列 src  = 该 skill 在源业务仓库中的绝对路径
+# 中列 src  = 该 skill 在源业务仓库中的绝对路径
+# 第三列 mode 可选：sync=参与同步（默认，可省略）；watch=仅监控漂移（--check 提示差异，不同步）
+# 同名 skill 可登记多行（多个仓库各有一份副本时）：多个 sync 行按源仓库 git 最后提交时间
+# 择新（非 git 目录回退最新 mtime，并列取靠前行）；落选 sync 行与 watch 行只在 --check 提示。
+# 例（另一仓库的同名副本仅监控）：
+# doc-governance,~/hetus/hetu-creative/.agents/skills/doc-governance,watch
 ebook-ai-notes,~/projects/books/.agents/skills/ebook-ai-notes
 translate-epub,~/projects/books/.agents/skills/translate-epub
-axum-tower,~/hylxos/.agents/skills/axum-tower
-committing,~/hylxos/.agents/skills/committing
-fusions,~/hylxos/.agents/skills/fusions
-doc-governance,~/hylxos/.agents/skills/doc-governance
+axum-tower,~/hetus/hetu-creative/repos/fusions/.agents/skills/axum-tower
+committing,~/hetus/hetu-creative/repos/fusions/.agents/skills/committing
+fusions,~/hetus/hetu-creative/repos/fusions/.agents/skills/fusions
+rust-reviewer,~/hetus/hetu-creative/repos/fusions/.agents/skills/rust-reviewer
+doc-governance,~/hetus/hetuos/.agents/skills/doc-governance
+sdd,~/hetus/hetuos/.agents/skills/sdd

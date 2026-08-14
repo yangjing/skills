@@ -32,7 +32,7 @@ metadata:
 5. Output：审计输出冲突和修复顺序；同步输出改动文件和校验结果；摘要点名 direct content edits / reference cleanup / ownership changes。
 6. MUST NOT：审计阶段不得编辑文件；不得把项目专有规则写进项目中立 skill；不得用解释性段落替代 Agent-facing 执行协议。
 
-**项目 overlay 自动发现（约定优于配置）**：overlay MUST 命名为 `<skill-name>.overlay.md` 并置于 skill 目录同级（本 skill 即 `doc-governance.overlay.md`；若 skill 经 symlink 镜像到其它 skills 树，如 `.claude/skills/` → `.agents/skills/`，以 resolve symlink 后的真实安装目录同级为准）。三阶段开始前若该文件存在，则 MUST 先读取它作为项目输入（权威源 / 概念归属 / 协作边界 / 实现约束 SSOT）——发现由命名约定承担，无需在项目 `CLAUDE.md` 另设触发入口；未找到时回退到「调用方把填充后的 overlay 表格作为上下文提交」。
+**项目 overlay 自动发现（约定优于配置）**：overlay MUST 命名为 `<skill-name>.overlay.md` 并置于 skill 目录同级。当 skill 经 symlink 镜像到其它 skills 树时（如 `.claude/skills/` → `.agents/skills/`，或 skill 主体 vendored 进 submodule 而 `.agents/skills/<name>` 是指向 submodule 的 symlink），overlay 发现按以下优先级：**① 调用方 skills 树内（即 `.agents/skills/` 下的 symlink 同级）的 overlay 优先**——它承载消费方项目落地指针；② 否则回退到 resolve symlink 后的真实安装目录同级。这样 skill 主体可 vendored 进 submodule，而 overlay 留消费方仓。三阶段开始前若该文件存在，则 MUST 先读取它作为项目输入（权威源 / 概念归属 / 协作边界 / 实现约束 SSOT）——发现由命名约定承担，无需在项目 `CLAUDE.md` 另设触发入口；未找到时回退到「调用方把填充后的 overlay 表格作为上下文提交」。
 
 ## 核心原则（MUST）
 

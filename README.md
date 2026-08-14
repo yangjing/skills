@@ -24,6 +24,10 @@
 Fusion Rust 后端框架（`fusions` 及子 crate）的核心库模式与决策规范：依赖注入、类型化 DB 上下文、Axum/ConnectRPC 集成、JWT/MQ/AI、BMC CRUD、RLS 事务。
 [`README`](skills/fusions/README.md) · [`SKILL.md`](skills/fusions/SKILL.md)
 
+### 🔍 rust-reviewer
+对 Rust 代码做结构化审查：按 `Cargo.toml` 判定 lib / bin 自动分流——lib crate 同时审代码质量（16 类）与下游 API 人体工程学（8 类，含 semver 隐藏破坏面），bin crate 只审代码质量；产出按严重度分级、带 `file:line` 的发现清单与 API 健康速评。
+[`README`](skills/rust-reviewer/README.md) · [`SKILL.md`](skills/rust-reviewer/SKILL.md)
+
 ### 📝 committing
 快速创建符合 Conventional Commits 规范的 git commit，message 可自动生成或手动指定，强制无 AI 署名。适合作为斜杠命令使用。
 [`README`](skills/committing/README.md) · [`SKILL.md`](skills/committing/SKILL.md)
@@ -53,6 +57,7 @@ npx skills add yangjing/skills --skill ebook-ai-notes
 npx skills add yangjing/skills --skill translate-epub
 npx skills add yangjing/skills --skill axum-tower
 npx skills add yangjing/skills --skill fusions
+npx skills add yangjing/skills --skill rust-reviewer
 npx skills add yangjing/skills --skill committing
 npx skills add yangjing/skills --skill doc-governance
 npx skills add yangjing/skills --skill sdd
@@ -99,7 +104,10 @@ cp sync.local.example.csv sync.local.csv
 # 然后编辑 sync.local.csv，把 src 改成本机源仓库路径（支持 ~ 与 $ENV 展开）
 ```
 
-`sync.local.csv` 为两列 CSV（`name,src`），样本见 [`sync.local.example.csv`](sync.local.example.csv)。各 skill 对应的源路径以本地 `sync.local.csv` 为准（用 `uv run scripts/sync.py --list` 随时查看）。
+`sync.local.csv` 为 CSV（`name,src[,mode]`），样本见 [`sync.local.example.csv`](sync.local.example.csv)。各 skill 对应的源路径以本地 `sync.local.csv` 为准（用 `uv run scripts/sync.py --list` 随时查看）。
+
+- 第三列 `mode` 可选：`sync`（默认，参与同步）/ `watch`（**仅监控**——`--check` 时提示与本仓库的差异，不同步、不阻断退出码）。
+- **同一 skill 可登记多行**（多个仓库各有一份副本时）：多个 `sync` 行在同步与检测前自动**择新**——git 仓库按该目录的最后提交时间（未提交的工作区改动不计，重 clone / checkout 不受影响），非 git 目录回退最新 mtime，并列取靠前一行。落选 `sync` 行与 `watch` 行的差异只在 `--check` 中提示。
 
 **同步命令**（[uv](https://docs.astral.sh/uv/) 运行，依赖由脚本内联声明，零额外安装）：
 
@@ -107,7 +115,8 @@ cp sync.local.example.csv sync.local.csv
 # 列出映射表（skill 名 → 源路径）
 uv run scripts/sync.py --list
 
-# 检测哪些 skill 已与源漂移（不改文件；有漂移则退出码 1，适合 CI）
+# 检测哪些 skill 已与源漂移（不改文件；当前同步源有漂移则退出码 1，适合 CI；
+# watch / 落选源差异只提示不阻断）
 uv run scripts/sync.py --check
 
 # 同步配置中的全部 skill（覆盖，保留本仓库独有的 README.md）
@@ -122,12 +131,12 @@ uv run scripts/sync.py --src ~/some-repo/.agents/skills/new-skill --src ~/other/
 
 **日常同步流程：**
 
-1. 在源仓库（如 `~/hylxos`）改 skill 并 `git commit`（源真相更新）。
+1. 在源仓库（如 `~/hetus/hetuos`）改 skill 并 `git commit`（源真相更新）。
 2. 回到本仓库跑 `uv run scripts/sync.py`（或先 `--check` 看漂移范围）。
 3. 若源 skill 的功能/用法有实质变化，相应更新 `skills/<name>/README.md`（README 是人工为分发写的，脚本不会覆盖）。
 4. `git add -A && git commit && git push`——skills.sh 会在用户下次 `npx skills add` 时自动取到新版。
 
-> 同步设计：同步时排除 `README.md`（本仓库为分发人工撰写，源目录没有）与 `__pycache__`（Python 缓存），不删本仓库独有文件；内容无变化时幂等，`git diff` 保持干净。
+> 同步设计：同步时排除 skill 根目录的 `README.md`（本仓库为分发人工撰写，源目录没有）与任意层级的 `__pycache__`（Python 缓存），不删本仓库独有文件；源内子目录的 `README.md` 属于 skill 本体，照常同步。内容无变化时幂等，`git diff` 保持干净。
 
 ## Skill 格式约定
 

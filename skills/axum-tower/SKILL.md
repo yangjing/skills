@@ -111,4 +111,4 @@ let router = Router::new()
 ## Related Skills
 
 - [`fusions`](../fusions/SKILL.md)：Fusion 栈核心库模式（fusions 技术栈项目以其为准）
-- [`rust-best-practices`](../rust-best-practices/SKILL.md)：通用 Rust 惯用法
+- `rust-best-practices` skill：通用 Rust 惯用法（按 skill 名发现加载，未必与本文同处安装）

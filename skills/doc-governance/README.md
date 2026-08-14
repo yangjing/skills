@@ -40,7 +40,7 @@ npx skills add <owner>/my-skills --skill doc-governance -g -y
 
 本 skill 面向 AI Agent 自动执行。默认按 audit → sync → summary 串联；用户只要求其中一阶段时只执行该阶段。
 
-**项目 overlay 自动发现**：overlay 必须命名为 `doc-governance.overlay.md` 并置于 skill 目录同级（若 skill 经 symlink 镜像到其它 skills 树，以 resolve 后的真实安装目录同级为准）。三阶段开始前若该文件存在，则先读取作为项目输入（权威源 / 概念归属 / 协作边界 / 实现约束 SSOT）。未找到时回退到「调用方把填充后的 overlay 表格作为上下文提交」。
+**项目 overlay 自动发现**：overlay 必须命名为 `doc-governance.overlay.md` 并置于 skill 目录同级。当 skill 经 symlink 镜像到其它 skills 树（或 skill 主体 vendored 进 submodule）时，**调用方 skills 树内（symlink 同级）的 overlay 优先**，否则回退到 resolve 后的真实安装目录同级——这样 skill 主体可 vendored 进 submodule，而 overlay 留在消费方仓库。三阶段开始前若该文件存在，则先读取作为项目输入（权威源 / 概念归属 / 协作边界 / 实现约束 SSOT）。未找到时回退到「调用方把填充后的 overlay 表格作为上下文提交」。
 
 ### 链接校验
 
