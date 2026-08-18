@@ -238,6 +238,7 @@ HISTORICAL_PREFIXES = {
 ANCHOR_CHECK = os.environ.get("DOC_GOV_NO_ANCHOR_CHECK", "").strip() not in ("1", "true", "yes")
 
 LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\(([^)]+)\)")
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 # 锚定反引号内容开头：避免 `<skill-name>.overlay.md`、`*-architecture.md` 这类占位符 /
 # glob 模式被截断误配为字面文件名（截断后的 "overlay.md"/"architecture.md" 并非真实引用）。
@@ -335,12 +336,26 @@ def iter_md_files() -> Iterable[Path]:
                 yield p
 
 
+def _link_visible_text(text: str) -> str:
+    """围栏代码块整段剔除、行内代码段替换为空格——两处的 [text](url) 是示例而非链接。"""
+    kept: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        kept.append(INLINE_CODE_RE.sub(" ", line))
+    return "\n".join(kept)
+
+
 def extract_links(md: Path) -> list[str]:
     try:
         text = (ROOT / md).read_text(encoding="utf-8")
     except Exception:
         return []
-    return [m.group(2).strip() for m in LINK_RE.finditer(text)]
+    return [m.group(2).strip() for m in LINK_RE.finditer(_link_visible_text(text))]
 
 
 def resolve_target(src: Path, url: str) -> tuple[Path | None, str]:
@@ -549,6 +564,12 @@ def self_test() -> int:
         expect("重名章节" in slugs and "重名章节-1" in slugs, "重名标题的 -N 后缀规则错")
         expect("代码块内的标题" not in slugs, "围栏代码块内的 # 被误当作标题")
 
+    # 链接提取：围栏代码块 / 行内代码中的 [x](y) 是示例，MUST NOT 参与校验
+    visible = _link_visible_text("[a](b.md)\n```text\n[c](d.md)\n```\n`[e](f.md)` 尾示例\n")
+    expect("[a](b.md)" in visible, "正文链接被误剔除")
+    expect("[c](d.md)" not in visible, "围栏代码块内的链接示例未被剔除")
+    expect("[e](f.md)" not in visible, "行内代码中的链接示例未被剔除")
+
     # 末段对齐是纯函数，规则写错会把 stale 简写误判为可解析（漏报），钉住它。
     expect(_segments_match_tail(("docs", "specs", "x", "main.md"), ("x", "main.md")),
            "末段对齐应命中：尾部段逐段一致")
@@ -559,7 +580,7 @@ def self_test() -> int:
 
     if fails:
         return 2
-    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过 / 末段对齐 均正确）")
+    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过（标题与链接）/ 末段对齐 均正确）")
     return 0
 
 

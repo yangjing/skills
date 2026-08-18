@@ -40,6 +40,7 @@ metadata:
 | 兼容性、破坏性变更、演进窗口 | [SPECIFICATION §11](references/SPECIFICATION.md#11-兼容性与演进跨边界默认兼容模式) | — |
 | 质量门禁、测试分层、UAT 记录纪律 | [SPECIFICATION §13](references/SPECIFICATION.md#13-质量门禁通用) | — |
 | **维护 / 编写 UAT 文档、覆盖矩阵、自动化证据映射、判定「UAT 已覆盖 / 已签收」** | [SPECIFICATION §13.3](references/SPECIFICATION.md#133-uat-与自动化测试的边界auto-证据规则)（UAT ≠ 自动化测试；AUTO 证据 ≠ 签收） | — |
+| **质量专项验收：判定「导出质量 / 兼容性等是否该立专项」、编写验收矩阵或对照证据文档、专项归档时判定矩阵去留与覆盖矩阵回流** | [SPECIFICATION §13.4](references/SPECIFICATION.md#134-质量专项验收矩阵与对照证据)（立项判据 / 产出最小结构 / 归档保留与回流） | — |
 | 执行计划归档、规则回流 | [SPECIFICATION §4.6](references/SPECIFICATION.md#46-执行计划归档回流) | — |
 | 拆迭代任务、定义契约包、代码生成链、迭代收尾 checklist | [spec-driven-development](references/spec-driven-development.md) | [protobuf-connectrpc](stacks/protobuf-connectrpc.md) §2.3 |
 | **评审模块设计 / 判定是否重构 / 新增 service 或 class / 写或改代码注释 / PR 判断代码质量** | [design-philosophy](references/design-philosophy.md)（深模块、信息隐藏、设计两次、十二气味；注释准入 = §8） | — |
