@@ -130,13 +130,17 @@ connectrpc 0.6 公开 API 中"自定义 connector"（配 connect-timeout / keepa
 
 ## AuthLayer — 认证中间件
 
-解密 JWE token → 提取 JWT claims → 注入可信 HTTP headers。
+两种 token 模式：**JWE 模式**（`AuthLayer::new`）解密 JWE → 提取 JWT claims →
+按 `claim_mappings` 注入可信 HTTP headers；**不透明 token 模式**
+（`AuthLayer::with_token_resolver`，自管会话）不解密任何东西——token 交给应用
+提供的 `AuthTokenResolver`（如服务端会话表查询 + 吊销检查），由它产出身份
+headers（见下节）。
 
 ### 核心概念
 
 - **应用无关**: 所有应用配置通过 `AuthConfig` 注入，Layer 本身不包含领域逻辑
 - **豁免机制**: 支持路径前缀豁免 (`exclude_paths`) 和 RPC service/method 豁免 (`exclude_rpcs`)
-- **Claim 映射**: 灵活配置 JWT claim → HTTP header 的映射规则
+- **Claim 映射**: 灵活配置 JWT claim → HTTP header 的映射规则（仅 JWE 模式消费）
 - **非用户主体**: `TrustedSubject` extension + `trusted_subject_rpcs` 白名单（v0.3 新增，见下）
 
 ### AuthConfig
@@ -191,8 +195,16 @@ pub enum ClaimSource {
 
 ```rust
 use fusions::rpc::{AuthLayer, AuthConfig};
+use std::sync::Arc;
 
+// JWE 模式
 let auth_layer = AuthLayer::new(security_setting, auth_config);
+
+// 不透明 token 模式（自管会话）——resolver 由应用实现并持有 DB 句柄
+let auth_layer = AuthLayer::with_token_resolver(
+    auth_config,
+    Arc::new(SessionTokenResolver::new(mm)),
+);
 
 // 作为 Axum layer 使用
 let router = Router::new()
@@ -220,7 +232,7 @@ let router = Router::new()
 
 ```rust
 pub struct TrustedSubject {
-    /// 谁为这个主体背书，进日志 / 审计，如 "hetu-careos:system"
+    /// 谁为这个主体背书，进日志 / 审计，如 "consumer-app:system"
     pub principal: String,
     /// 向下游注入的身份 header，如 [("x-tenant-id", "3")]。
     /// 由验证方从它验过的东西推导，AuthLayer 绝不自己发明。
@@ -244,6 +256,35 @@ fail-closed 的四条（改动这块前先读全）：
 
 `trusted_subject_rpcs` 与 `exclude_rpcs` 刻意分开：前者是「换一种身份来源」，
 后者是「不需要身份」。合并两者会让匿名面被悄悄放大。
+
+### AuthTokenResolver —— 不透明 token（自管会话）模式
+
+`AuthLayer::with_token_resolver(config, resolver)` 走的认证形态：token 不是
+JWE，而是应用自管的会话 token（服务端存储、可吊销）。**验证逻辑完全归
+resolver**——存在性、过期、吊销都由它判，返回的是要注入下游的身份 headers：
+
+```rust
+#[fusion_core::async_trait]
+pub trait AuthTokenResolver: Send + Sync + 'static {
+  async fn resolve(&self, token: &str) -> Result<Vec<(&'static str, String)>, ()>;
+}
+```
+
+与 JWE 模式共享同一套防伪保证与 `AuthConfig`（豁免面、`trusted_subject_rpcs`
+全部照常生效）：
+
+1. resolver 返回的 header 名会先从入站请求里剥除，再注入——伪造的
+   `x-account-id` 死在这一步。
+2. 值不是合法 header 值（非 ASCII）时拒绝请求，fail-closed。
+3. `Err(())` → 标准统一 401。
+
+错误类型刻意是 `()`：中间件层面所有失败（未知 / 过期 / 已吊销）都映射成同一个
+401，可区分的失败种类由 resolver 自己记日志。若未来要按失败种类分支，扩成
+结构化错误是 breaking change——有真实下游需要时再引入。
+
+> 消费样例（e004 落地形态）：resolver 持 `ModelManager`，查会话表的
+> `token_hash` + `expires_at` + `revoked_at`，命中则返回
+> `[("x-account-id", account_id.to_string())]`。
 
 ## ContextValidationLayer — 上下文校验
 

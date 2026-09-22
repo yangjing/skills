@@ -1,6 +1,10 @@
+---
+status: active
+version: v2  # 2026-07-26
+---
+
 # 国际化规范（i18n Conventions）
 
-> **Status**: active · **Version**: v2（2026-07-26）
 > **适用范围**：采用 react-i18next + Ant Design + dayjs 的 Web 前端应用；内容分类（§4）与机构级默认语言（§10）的判据与技术栈无关
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **本文不重述**：日期 / 时间格式 → [SPECIFICATION §6](./SPECIFICATION.md#6-日期时间格式强制)；前端装配与 Provider 顺序 → [frontend-conventions](./frontend-conventions.md)

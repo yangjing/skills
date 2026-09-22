@@ -1,6 +1,10 @@
+---
+status: active
+version: v2  # 2026-07-26
+---
+
 # 后端分层架构规范
 
-> **Status**: active · **Version**: v2（2026-07-26）
 > **适用范围**：模块化后端服务的分层组织与强类型边界。类型映射表以 Rust + PostgreSQL 为示例栈，分层与依赖规则本身与语言无关
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **本文不重述**：契约类型与统一形状 → [SPECIFICATION §7](./SPECIFICATION.md#7-契约类型与统一形状)；模块内部设计判据 → [design-philosophy](./design-philosophy.md)；跨服务依赖治理 → [service-dependency-contract](./service-dependency-contract.md)

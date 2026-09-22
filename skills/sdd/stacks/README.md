@@ -19,8 +19,10 @@
 | [protobuf-connectrpc.md](./protobuf-connectrpc.md) | Protocol Buffers + ConnectRPC + Buf | SPECIFICATION §7 · service-dependency-contract §4 · spec-driven-development §2 |
 | [rust-postgres.md](./rust-postgres.md) | Rust + PostgreSQL + sqlx | backend-layering §3.5 |
 | [react-tanstack-antd.md](./react-tanstack-antd.md) | React 19 + TanStack Router/Query + Ant Design 6 + Vite | frontend-conventions（全册）· naming-conventions §10 · i18n-conventions §5 / §8 |
+| [react-native-ios.md](./react-native-ios.md) | React Native + Hermes + Metro + Xcode（iOS 壳） | frontend-conventions（全册）· SPECIFICATION §13.1 |
+| [harmonyos-arkts.md](./harmonyos-arkts.md) | HarmonyOS + ArkTS + hvigor + napi + DevEco Testing Hypium | frontend-conventions（全册）· SPECIFICATION §13.1 |
 
-这三个也是 `references/` 各分册的**默认基线栈**——分册中出现的具体类型、API 与协议名均来自它们。使用其它技术栈的项目 MUST 按 §2 建立自己的适配层。
+前三个是 `references/` 各分册的**默认基线栈**——分册中出现的具体类型、API 与协议名均来自它们。使用其它技术栈的项目 MUST 按 §2 建立自己的适配层。
 
 ## 2. 新增一个适配层
 

@@ -1,6 +1,10 @@
+---
+status: active
+version: v2  # 2026-07-26
+---
+
 # 服务依赖契约
 
-> **Status**: active · **Version**: v2（2026-07-26）
 > **适用范围**：微服务 / 领域服务之间的依赖治理，尤其是「事实服务（SoR）→ 决策服务」这类强契约场景
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **定位**：服务依赖与通信协议领域的规范性来源（[SPECIFICATION §1.3](./SPECIFICATION.md#13-优先级与规范性来源)）

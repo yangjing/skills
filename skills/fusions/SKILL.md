@@ -3,28 +3,32 @@ name: fusions
 description: >
   Use this skill when working on Rust backend code or docs for the Fusion
   stack (v0.3): `fusions`, `fusion-common`, `fusion-core`, `fusion-db`,
-  `fusion-web`, `fusion-rpc`, `fusion-security`, `fusion-ai`,
-  standalone `fusion-mq`, or `fusion-sql`. Covers DI
-  (`Application`/`Plugin`/`Component`), typed DB context
-  (`ModelManager`/`ModelContext`/`TypedDbPlugin`) over sqlx via
-  `DbxPostgres`, Axum (`WebError`/`WebServerBuilder`), ConnectRPC
-  (`AuthLayer`/`ContextValidationLayer`/`TrustedSubject`/`ConnectTransport`),
-  JWT/OAuth/ACS3, MQ producer/consumer plugins, AI factory/graph_flow/STT,
-  RLS/session-var transactions, trusted-header auth, and east-west
-  client transport. Also covers migrating off the v0.2 `fusionsql` /
-  sea-query / BMC API that v0.3 deleted. Do not use for frontend code.
+  `fusion-web`, `fusion-rpc`, `fusion-security`, `fusion-ai`, standalone
+  `fusion-sql`, `fusion-mq`, `fusion-weixin`, `fusion-storage`, `hetuflow`.
+  Covers DI + typed `ModelManager` over sqlx via `DbxPostgres`, Axum
+  (`WebError`/`WebServerBuilder`, per-IP `RateLimiter`), ConnectRPC
+  (`AuthLayer` JWE or opaque-token `AuthTokenResolver` mode,
+  `TrustedSubject`, self-healing east-west transport),
+  JWT/OAuth/ACS3/captcha, MQ plugins, WeChat login orchestration (three
+  credential surfaces, anchoring policy, xpay/push), object storage
+  (opendal operator + presigned URLs), durable workflow, AI
+  openai_compatible wire (Chat/Responses factory split)/graph_flow/STT/
+  TTS/voiceprint/usage-batch metering, RLS/session-var transactions, and
+  migrating off the v0.2 `fusionsql` / sea-query / BMC API. Do not use for
+  frontend code.
 ---
 
 # fusions Framework (v0.3)
 
 `fusions` is an **application-agnostic** Rust framework: `Application` + DI
-(`Component`, `Plugin`), typed `ModelManager<C>` over `fusion-sql`, Axum
-integration via `fusion-web`, ConnectRPC via `fusion-rpc`, JWT via
-`fusion-security`, and standalone MQ via `fusion-mq`. The framework knows
-nothing about specific tenants, scopes, claims, or RLS policies — those are
-supplied by the **application crate** through an `AppContext: ModelContext`
-impl and configuration structs (`AuthConfig`, `ContextValidationConfig`,
-`MqConfig`). When you extend fusion crates, keep business semantics out.
+(`Component`, `Plugin`), typed `ModelManager<C>` over `fusion-sql`, Axum via
+`fusion-web`, ConnectRPC via `fusion-rpc`, JWT via `fusion-security`, plus
+standalone MQ / WeChat login / object storage / durable workflow crates
+(`fusion-mq` / `fusion-weixin` / `fusion-storage` / `hetuflow`). It knows
+nothing about tenants, scopes, claims, or RLS policies — those come from the
+**application crate** via an `AppContext: ModelContext` impl and config
+structs (`AuthConfig`, `ContextValidationConfig`, `MqConfig`); keep business
+semantics out of fusion crates.
 
 ## v0.3 breaking changes (read before touching DB code)
 
@@ -32,13 +36,14 @@ impl and configuration structs (`AuthConfig`, `ContextValidationConfig`,
 | ---- | ------ |
 | SQL crates | `fusionsql` → **`fusion-sql`**, `fusionsql-core` → **`fusion-sql-core`**, `fusionsql-macros` **deleted** |
 | ORM surface | The whole sea-query stack is **gone**: `Fields` / `FilterNodes` / `SeaFieldValue` macros, `OpVal*`, `FilterGroups`, `DbBmc` / `BmcConfig` / `base::*` CRUD, `page::{Page, Paged, PageResult, OrderBys}`, `with_filter_interceptor`. Write SQL with sqlx against `DbxPostgres`. |
-| Auth | `fusion-rpc` adds `TrustedSubject` + `AuthConfig::trusted_subject_rpcs` (**`AuthConfig` gained a field** — literal constructions must add it) |
+| Auth | `fusion-rpc` adds `TrustedSubject` + `AuthConfig::trusted_subject_rpcs` (**`AuthConfig` gained a field** — literal constructions MUST add it) |
+| Password | `fusion_core::security::pwd` moved to **`fusion-security`** (`fusions::security::pwd`); `SecurityError` gained 5 pwd variants (`InvalidHashFormat` = old `Error::InvalidFormat`, renamed), `fusion_core::security::Error` is JWT/HMAC-only now |
 | AI metering | `AiUsageEvent::from_ctx_usage` → **`from_ctx_tokens`**; new `from_ctx_audio` for STT; `AiUsageEvent` is now `#[non_exhaustive]` (construct via those two fns only) |
+| AI model factory | `Client::completion_model()` now returns the **Chat Completions** form; the Responses form moved to the new **`Client::responses_model()`**; `chat_completions_model()` and `completions_api()` are **deleted** |
 | AI STT | `paraformer` module **deleted** → `dashscope::FunAsrRealtime`; `AudioStreamConfig::hotwords` → `vocabulary_ids` + `context_items`; `AudioEncoding::as_provider_str` removed |
 | Misc | `SensitiveString` lost its `sea_query::Value` / `Nullable` impls; `fusion-core` dropped the unused `fusionsql` feature |
 
-Full migration table (old symbol → replacement) at the top of
-[references/fusion-sql.md](references/fusion-sql.md).
+Full migration table (old symbol → replacement) at the top of [fusion-sql](references/fusion-sql.md).
 
 ## Module Map
 
@@ -51,16 +56,20 @@ Full migration table (old symbol → replacement) at the top of
 | Web        | `fusions::web::*`       | `Router`, `WebError`, `WebResult`, `WebServerBuilder`       |
 | RPC        | `fusions::rpc::*`       | `AuthLayer`, `ContextValidationLayer`, `TrustedSubject`, `mount_rpc_services`, `build_connect_transport`, `ConnectTransport` |
 | SQL        | `fusions::sql::*`       | `ModelManager<C>`, `ModelContext`, `store::DbxPostgres`, `id::Id`, `DbConfig`, `SqlError` |
-| Security   | `fusions::security::*`  | `SecurityError`, `jwt::token::make_token`, `oauth::OAuthClient` |
-| AI         | `fusions::ai::*`        | `factory::ClientFactory`, `graph_flow::*`, `llm::MeteredLlmProvider`, `speech_to_text::SpeechToText`, `AiError` |
+| Security   | `fusions::security::*`  | `SecurityError`, `pwd::{generate_pwd, verify_pwd, is_strong_password}`, `jwt::token::make_token`, `oauth::OAuthClient`, `captcha::CaptchaStore`, `wechat::WechatAuthClient` (feature `with-wechat`) |
+| AI         | `fusions::ai::*`        | `providers::openai_compatible::*` (`completion_model`=Chat / `responses_model`=Responses), `graph_flow::*`, `llm::MeteredLlmProvider`, `llm::usage_batch::spawn_usage_batch_writer`, `speech_to_text::SpeechToText`, `providers::{dashscope, minimax, volcengine}` (STT/TTS/声纹), `AiError` |
 | MQ         | `fusion_mq::*`          | `MessageQueuePlugin`, `EventProducerHandle`, `EventConsumerHandle`, `PublishEvent`, `RetryDecision` |
+| Weixin     | `fusions::weixin::*` (feature `weixin`) | `WeixinLoginClient`, `WeixinCredentials`, `WeixinChannel`, `WeixinToken` / `MpToken` / `MpSigningSession`, `xpay::*`, `push::*` |
+| Storage    | `fusion_storage::*`     | `build_operator`, `StorageConfig`, `generate_signed_download_url` / `generate_signed_upload_url`, `FsPresignRoutes`, `sign_read` / `sign_upload` / `verify_hmac` / `verify_upload_hmac` |
+| Workflow   | `hetuflow::*`           | `prelude`（`WorkflowService` / `PgWorkflowStore` / `decide_advance` / `validate_definition` / outbox·timer workers） |
 
-> The aggregate crate `fusions` re-exports each sub-crate behind a feature
-> gate except `fusion-mq`, which is currently a standalone workspace crate.
-> Import aggregate modules via `fusions::xxx::*` from application code so
-> feature flags stay coherent; import MQ as `fusion_mq::*`. Add new
-> cross-crate error conversions inside `fusions::error` so they can be gated
-> alongside their dependency.
+> The aggregate `fusions` re-exports each sub-crate behind a feature gate
+> (`weixin` included); **`fusion-mq`, `fusion-storage`, `hetuflow*` are
+> standalone** — no re-export, no `fusions::error` conversion (exception:
+> `WeixinError` has an aggregate `From` under `weixin`), so map their errors
+> at the application boundary. Import aggregate modules as `fusions::xxx::*`;
+> MQ / storage / workflow as `fusion_mq::*` / `fusion_storage::*` /
+> `hetuflow::*`; new `From` impls go in `fusions::error`, feature-gated.
 
 ## Decision tree (read first)
 
@@ -72,20 +81,18 @@ When designing a service or handler, place each piece into exactly one slot:
    `#[derive(Component)]` and register in a `Plugin::build`.
 2. **Application service** (per-request DB work that needs the caller's
    identity / scope) — plain `pub fn new(mm: AppModelManager) -> Self`,
-   **no `#[derive(Component)]`**. Construct inline in each handler with a
+   **no `#[derive(Component)]`**; construct inline per handler with a
    request-scoped `mm`. Cross-service calls share the same `mm` via
    `OtherService::new(self.mm.clone())`.
-3. **Public / exempt endpoint** with no authenticated context — the
-   application supplies an app-defined helper that builds a base `mm` and
-   attaches a "system" `AppContext`. fusions never decides which endpoints
-   are exempt.
+3. **Public / exempt endpoint** — the application supplies an app-defined
+   helper that builds a base `mm` with a "system" `AppContext`. fusions
+   never decides which endpoints are exempt.
 
 The application crate (not fusions) wires requests through (2) vs (3).
 
 ## Gotchas (fusions-specific)
 
-Read these once; they trip people up because they diverge from default
-Rust / Axum / sqlx conventions.
+Read these once; they trip people up because they diverge from default Rust / Axum / sqlx conventions.
 
 - **No custom `AppState`.** Use `Application` as Axum state and inject
   services via `FromRequestParts` or a Tower middleware that populates
@@ -94,9 +101,7 @@ Rust / Axum / sqlx conventions.
   sub-crate owns only its narrow error type (`CoreError`, `SecurityError`,
   `WebError`, `SqlError`, `DbxError`, `AiError`). Every cross-crate
   `From<X> for DataError` impl is centralised in `fusions::error`, gated by
-  the `rpc` / `db` / `web` / `security` / `ai` features. When you wire up
-  a new error source, add the `From` impl in `fusions::error`, **not** in
-  the sub-crate.
+  features — wire a new error source there, **not** in the sub-crate.
 - **Application services don't derive `Component`.** Components are wired
   once at startup with the *base* `ModelManager` and never carry the
   current caller's context. A request-scoped service needs a request-scoped
@@ -105,75 +110,65 @@ Rust / Axum / sqlx conventions.
   the current user's tenant", stop — it's an application service.
 - **Default `ModelManager` is the compatibility path.**
   `fusions::db::ModelManager` is `DefaultModelManager = ModelManager<Ctx>`.
-  New services should declare an `AppContext: ModelContext` and use
+  New services SHOULD declare an `AppContext: ModelContext` and use
   `TypedDbPlugin::new(AppContext::system)` + `type AppModelManager = ModelManager<AppContext>`.
 - **`ModelContext` is what fusions sees.** It exposes `audit_user_id()`,
   `req_time()`, and (optionally) `db_session_vars()`. Headers, JWT claims,
   scope rules, custom context fields all belong in the application crate.
   Do NOT extend `fusion_common::Ctx` with application semantics.
 - **`SET LOCAL` is transaction-scoped.** If `ModelContext::db_session_vars()`
-  returns vars (e.g. for PostgreSQL RLS), then **every read AND write must
-  run inside a transaction**. A bare `dbx.fetch_*(dbx.db())` borrows a
+  returns vars (e.g. for PostgreSQL RLS), then **every read AND write MUST
+  run inside a transaction** — a bare `dbx.fetch_*(dbx.db())` borrows a
   connection without session vars set, so RLS-protected tables silently
   return empty and unprotected ones leak. Wrap reads with
-  `mm.dbx().db_postgres()?.begin_txn_read_only()` and writes with
-  `begin_txn`, or use `mm.transaction(|mm| async move { ... })`.
-  Caveat: `mm.transaction` / `read_transaction` are a bare `BEGIN; …; COMMIT;`
-  — they do **not** issue `set_config(...)`. An RLS application must go through
-  its own helper that layers the session vars on top (here:
-  `hetu_core::db::with_read_txn` / `with_write_txn`).
-- **Closure transactions support SAVEPOINT nesting.** Nested
-  `mm.transaction(|mm| async move { ... }).await` becomes a SAVEPOINT
-  automatically; commit/rollback is handled for you.
+  `begin_txn_read_only()` and writes with `begin_txn`, or
+  `mm.transaction(|mm| async move { ... })`. Caveat: the closure forms are
+  a bare `BEGIN; …; COMMIT;` (no `set_config(...)`) — an RLS application
+  MUST go through its own helper that layers the session vars on top
+  (here: `hetu_core::db::with_read_txn` / `with_write_txn`).
 - **`DbxPostgres` manual transactions, never raw `sqlx::Transaction`.**
   Cross-module signatures take `dbx: &DbxPostgres`. `dbx.execute()` returns
-  `u64` (rows affected), not `PgQueryResult` — calling `.rows_affected()`
-  on it is a compile error. Details:
-  [fusion-db reference](references/fusion-db.md#dbxpostgres-手动事务).
+  `u64` (rows affected) — `.rows_affected()` on it is a compile error.
+  Details: [fusion-db reference](references/fusion-db.md#dbxpostgres-手动事务).
 - **DB access is hand-written sqlx through `DbxPostgres` — there is no BMC.**
-  v0.3 deleted the whole BMC / query-builder layer. Repo functions take
-  `dbx: &DbxPostgres` and run `dbx.fetch_*(sqlx::query_as(...).bind(..))` /
-  `dbx.execute(sqlx::query(...))`. `dbx.db()` (the bare `&PgPool`) is the one
-  thing to avoid: it bypasses the transaction and its `SET LOCAL` session vars.
-  Audit columns are no longer auto-filled — write them explicitly from
-  `mm.ctx_ref()?`.
+  v0.3 deleted the whole BMC / query-builder layer. Repo functions run
+  `dbx.fetch_*(sqlx::query_as(...).bind(..))` / `dbx.execute(sqlx::query(...))`.
+  `dbx.db()` (the bare `&PgPool`) is the one thing to avoid: it bypasses the
+  transaction and its `SET LOCAL` session vars. Audit columns are no longer
+  auto-filled — write them explicitly from `mm.ctx_ref()?`.
 - **Client-supplied `ORDER BY` has no framework validation any more.** The BMC
-  allowlist that used to check `order_bys` against the entity's columns is gone
-  with the rest of the sea-query stack. sqlx cannot `bind` an identifier, so
-  every sort/filter column coming from a client MUST be mapped through an
-  application-side allowlist to a static column name before it reaches the SQL
-  string. Same for pagination: `Page` / `PageResult` no longer exist, the DTO
-  is the application's (here: the proto contract).
+  allowlist died with the sea-query stack, and sqlx cannot `bind` an
+  identifier — every client sort/filter column MUST pass through an
+  application-side allowlist to a static column name before it reaches the
+  SQL string. `Page` / `PageResult` no longer exist either; the DTO is the
+  application's (here: the proto contract).
 - **`AuthLayer` / `ContextValidationLayer` are application-agnostic.** All
   specifics — exempt paths/RPCs, claim mappings, error codes — come from
-  the config struct passed at construction time. Do not hardcode anything
-  application-specific inside the layers.
-- **`TrustedSubject` is a request *extension*, never a header** (v0.3). It lets
-  an application-owned **outer** layer vouch for a non-user principal (a sibling
-  bin's background job with no user token). An HTTP client can forge any header
-  but cannot set an extension, which is what makes it decidable. It is
-  fail-closed on two axes: the subject only reaches RPCs listed in
-  `AuthConfig::trusted_subject_rpcs`, and listing an RPC there does **not** make
-  it anonymous — a caller with neither a bearer token nor a trusted subject
-  still gets 401. An identity header value that is not valid ASCII rejects the
-  request rather than being dropped. Note `AuthConfig` gained this field, so
-  struct-literal configs must add it.
-- **Feature is `rpc`, not `grpc`.** The crate is `fusion-rpc` (ConnectRPC).
-  The convenience bundle `microservice = web + db + security + rpc`.
+  the config struct passed at construction. Nothing application-specific
+  gets hardcoded inside the layers.
+- **`TrustedSubject` is a request *extension*, never a header** (v0.3). It
+  lets an application-owned **outer** layer vouch for a non-user principal
+  (a sibling bin's background job with no user token) — a client can forge
+  any header but cannot set an extension. Fail-closed on two axes: the
+  subject only reaches RPCs listed in `AuthConfig::trusted_subject_rpcs`,
+  and that list does **not** make an RPC anonymous (no token + no subject
+  → 401); a non-ASCII identity value rejects the request. `AuthConfig`
+  gained this field — struct-literal configs MUST add it.
+- **Feature is `rpc`, not `grpc`.** Crate `fusion-rpc` (ConnectRPC); the
+  convenience bundle `microservice = web + db + security + rpc`.
 - **`fusion-mq` is standalone, not `fusions::mq`.** Register
   `fusion_mq::MessageQueuePlugin::new()` when `[fusion.mq].enable = true`,
-  then inject `EventProducerHandle` / `EventConsumerHandle` as long-lived
-  components. MQ uses its own Postgres pool and does not go through
-  `ModelManager`, `SET LOCAL`, or `fusions::error`.
+  then inject the handles as long-lived components. MQ uses its own
+  Postgres pool — no `ModelManager`, no `SET LOCAL`, no `fusions::error`.
 - **East-west client transport is self-healing — use the factory.** Build
   every `*ServiceClient<ConnectTransport>` via `build_connect_transport(uri)`
-  (or `_with(uri, &TransportConfig)`), which injects kernel-layer TCP probing
-  (keepalive + `TCP_USER_TIMEOUT` + connect-timeout) over connectrpc's built-in
-  `Reconnect`, so half-open / black-holed connections are detected within ~30s
-  and reconnect automatically — no process restart. MUST be called inside a
-  tokio runtime (`.shared()` spawns a worker). Never hand-roll bare
-  `Http2Connection::lazy_plaintext` (bypasses self-heal) or `HttpClient::plaintext()`
-  (HTTP/1.1 only). See [fusion-rpc reference](references/fusion-rpc.md#东西向客户端-transport自愈).
+  (or `_with(uri, &TransportConfig)`): kernel-layer TCP probing over
+  connectrpc's built-in `Reconnect` detects half-open / black-holed
+  connections within ~30s and reconnects — no process restart. MUST be
+  called inside a tokio runtime (`.shared()` spawns a worker). Never
+  hand-roll bare `Http2Connection::lazy_plaintext` or
+  `HttpClient::plaintext()` — both bypass self-heal. Details:
+  [fusion-rpc reference](references/fusion-rpc.md#东西向客户端-transport自愈).
 - **`#[component]` vs `#[config]`.** `#[component]` injects from the
   component registry; `#[config]` injects a `Configurable` value from the
   config system. Fields with neither get `Default::default()`.
@@ -182,10 +177,42 @@ Rust / Axum / sqlx conventions.
   `get_` prefix for `Result`-returning accessors in new code.
 - **`WebServerBuilder::serve()` runs the server loop until shutdown** (the
   old name `build()` is deprecated — it never "built and returned").
+- **`AuthLayer` has two token modes: JWE and opaque (self-managed session).**
+  `AuthLayer::new` decrypts a JWE and maps claims per `claim_mappings`;
+  `AuthLayer::with_token_resolver(config, resolver)` hands the bearer token
+  to an app-supplied `AuthTokenResolver` (e.g. server-side session lookup
+  with revocation) which owns validation and returns the identity headers —
+  no JWE decryption. Both modes keep the anti-forgery guarantees (returned
+  header names stripped from the inbound request, unparseable values fail
+  closed); the resolver error type is deliberately `()` — every failure
+  maps to the same 401, the resolver logs what it can distinguish.
+- **Outbound system-mode tokens are minted with `[fusion.security.pwd]`
+  `secret_key`.** When a bin calls a sibling bin's RPC as a system
+  principal (no user token), it mints a JWE via
+  `jwt::token::make_token_by_user_id(sc, …)`; the callee's `AuthLayer`
+  decrypts with its own `SecuritySetting` — **both bins MUST carry the
+  same `secret_key` value**. A missing/mismatched key mints a JWE the
+  callee cannot decrypt, so every call 401s: that is an outbound mint
+  problem, not an `AuthLayer` config problem — don't tune the callee first.
+- **`captcha` and `RateLimiter` are single-node, in-process primitives.**
+  State lives in process memory: restart clears it, multi-instance counts
+  per instance (divide thresholds by instance count or move to external
+  storage). Captcha challenges are one-shot (`verify` deletes on hit or
+  miss); `RateLimiter` rejects with 429 + `Retry-After`.
+- **fusion-weixin `session_key` never persists or logs.** Dropped at the
+  `fusion-security::wechat` primitive layer; the only escape is the
+  explicit `exchange_mp_with_session_key` → `MpSigningSession` primitive
+  (xpay dual-signing) — `SessionKey` is `ZeroizeOnDrop` with redacted
+  Debug, and copies out of `expose_for_signing()` are the caller's
+  discipline.
+- **`llm::usage_batch` is best-effort, not billing-grade.** Drops are
+  counted in `UsageMetrics`, but a killed process loses the queue.
+  Shutdown = drop all `AiUsageSink` clones, then await the writer
+  `JoinHandle`.
 - **Secret-carrying types never derive `Debug`.** Anything holding an
   `api_key` / credential gets a hand-written impl printing `<REDACTED>` —
-  `tracing::debug!(?config)` must not leak keys. `fusion-ai`'s STT types extend
-  the same rule to **PHI**: audio bytes and transcript text print as
+  `tracing::debug!(?config)` MUST NOT leak keys. `fusion-ai`'s STT types
+  extend the same rule to **PHI**: audio bytes and transcript text print as
   `<N bytes/chars redacted>`.
 
 ## Core templates
@@ -266,18 +293,16 @@ fusions does NOT ship a context-injection middleware: the mapping
 "trusted header → `AppContext` field" and the list of exempt RPCs are
 application-specific. Every fusion application implements the same shape:
 
-1. A Tower `Layer` placed **after `AuthLayer`** reads the trusted headers
-   `AuthLayer` injected, builds an `AppContext`, clones the base
-   `AppModelManager`, calls `with_ctx(...)`, and inserts both into
-   `request.extensions`.
+1. A Tower `Layer` placed **after `AuthLayer`** reads the injected trusted
+   headers, builds an `AppContext`, clones the base `AppModelManager`,
+   `with_ctx(...)`, and inserts both into `request.extensions`.
 2. Handlers pull the scoped `mm` from `Context::extensions` (ConnectRPC)
    or `Parts::extensions` (Axum) via a thin app helper, then construct
    the application service inline.
 3. For exempt endpoints (Login / RefreshToken / health), an app helper
-   builds a base `mm` attached to a "system" `AppContext` so the handler
-   call shape is symmetric.
-
-Replace `AppCtxLayer` / `mm_from_ctx` / `system_mm` with your own names:
+   builds a base `mm` with a "system" `AppContext` so the handler call
+   shape is symmetric — names like `AppCtxLayer` / `mm_from_ctx` /
+   `system_mm` are yours to invent.
 
 ```rust
 // Tower stack — last applied runs first:
@@ -335,21 +360,12 @@ let auth_layer = fusions::rpc::AuthLayer::new(security_setting, fusions::rpc::Au
     error_message: "Invalid token",
 }).into_middleware();
 
-let validation = fusions::rpc::ContextValidationLayer::new(
-    fusions::rpc::ContextValidationConfig {
-        context_header: "x-context-mode",
-        trigger_value: "scoped",
-        require_header: "x-scope-id",
-        exclude_paths: &["/health"],
-        exclude_rpcs: &[],
-        reject_status: 403,
-        error_code: "permission_denied",
-        error_message: "scoped context requires x-scope-id",
-    }
-).into_middleware();
+// ContextValidationLayer follows the same config-struct pattern
+// (ContextValidationConfig { context_header, trigger_value, require_header, … }) —
+// full shape in the fusion-rpc reference (§ ContextValidationLayer — 上下文校验).
 
-// .layer(): outer wraps inner — last applied runs first.
-router.layer(validation).layer(auth_layer)
+// .layer(): last applied runs first; full stack = router.layer(validation).layer(auth_layer)
+router.layer(auth_layer)
 ```
 
 ### Transactions (closure form preferred)
@@ -371,7 +387,7 @@ dbx.execute(sqlx::query("UPDATE …").bind(x)).await?;   // returns u64
 dbx.commit_txn().await?;
 ```
 
-RLS applications must not call `mm.transaction` directly — it is a bare
+RLS applications MUST NOT call `mm.transaction` directly — it is a bare
 `BEGIN; …; COMMIT;` with no `set_config(...)`. Use the application helper that
 layers the session vars on top (in this repo: `hetu_core::db::with_read_txn` /
 `with_write_txn` and their `_pg` variants).
@@ -384,8 +400,7 @@ use fusions::sql::store::DbxPostgres;
 #[derive(sqlx::FromRow)]
 pub struct UserRow { pub id: i64, pub name: String }
 
-// dbx methods return Result<_, DbxError>; `?` lifts it into SqlError (or the
-// application's own error via a map_err helper).
+// dbx methods return Result<_, DbxError>; `?` lifts into SqlError (or the app's own error).
 pub async fn find_by_id(dbx: &DbxPostgres, id: i64) -> Result<Option<UserRow>, SqlError> {
     let row = dbx.fetch_optional(
         sqlx::query_as::<_, UserRow>("SELECT id, name FROM users WHERE id = $1").bind(id),
@@ -406,17 +421,20 @@ pub async fn rename(dbx: &DbxPostgres, id: i64, name: &str) -> Result<u64, SqlEr
 
 | Feature        | Includes                       |
 | -------------- | ------------------------------ |
-| `full`         | web + db + security + ai + rpc |
+| `full`         | web + db + security + ai + rpc + weixin |
 | `api`          | web + db + security            |
 | `web-server`   | web + db                       |
 | `microservice` | web + db + security + rpc      |
 | `oauth`        | security + OAuth2              |
 
-Individual: `web`, `db`, `db-sqlite`, `security`, `ai`, `rpc`,
+Individual: `web`, `db`, `db-sqlite`, `security`, `ai`, `rpc`, `weixin`,
 `aliyun-acs3`, `openapi`, `logforth`, `tracing`, `ulid`.
 
-Standalone workspace crate: `fusion-mq` defaults to feature `with-postgres`
-and is not part of the `fusions` aggregate feature matrix.
+Standalone workspace crates (not in the aggregate feature matrix):
+`fusion-mq` (`with-postgres`); `fusion-storage` (default `fs`; backends
+`fs`/`oss`/`s3`/`obs` map to opendal `services-*`, an unselected backend
+errors in `build_operator`); `hetuflow` (default `runtime`; layers
+`core` → `runtime` → `sqlx` → `service`).
 
 ## Error handling
 
@@ -448,11 +466,12 @@ Cross-crate `From<X> for DataError` impls (all in `fusions::error`):
 | `fusion-rpc`        | `connectrpc::ConnectError` ↔ `DataError` 双向    | `rpc`        |
 | `fusion-db`/sql     | `SqlError`, `DbxError`, `sqlx::Error`           | `db`         |
 | `fusion-ai`         | `AiError`                                       | `ai`         |
+| `fusion-weixin`     | `WeixinError`（Invalid→401 · Unavailable→503 · MissingUnionid→500） | `weixin` |
 
 Plus always-on: `std::io::Error`, `serde_json::Error`, `uuid::Error`,
 `chrono::ParseError`, `std::net::AddrParseError`, `std::time::SystemTimeError`,
-`tokio::sync::{mpsc,oneshot}`, `tokio::task::JoinError`,
-`mea::mpsc::SendError`, `config::ConfigError`.
+`tokio::sync::{mpsc,oneshot}`, `tokio::task::JoinError`, `mea::mpsc::SendError`,
+`config::ConfigError`.
 
 Map at the smallest scope (repo → service → handler boundary). Application
 `main` returning `fusions::Result<()>` automatically converts
@@ -460,18 +479,21 @@ Map at the smallest scope (repo → service → handler boundary). Application
 
 ## References — load on demand
 
-Keep this `SKILL.md` in context. Open a reference file only when you are
-actively touching that module — they are detailed and would crowd context.
+Keep this `SKILL.md` in context; open a reference file only when actively
+touching that module — they are detailed and would crowd context.
 
 | Open when working on …                                          | Reference                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `Ctx` / `CtxPayload` fields, time helpers, `codes` constants    | [fusion-common](references/fusion-common.md)                          |
 | `Application` lifecycle, `Plugin` ordering, `Configurable`, `Component` rules, `CoreError` | [fusion-core](references/fusion-core.md)        |
 | `TypedDbPlugin` / `DbPlugin`, `Dbx`/`DbxPostgres` manual txn rules | [fusion-db](references/fusion-db.md)                                |
-| Axum handler shape, `WebError`, `WebServerBuilder`, `WebAuth`   | [fusion-web](references/fusion-web.md)                                |
-| ConnectRPC mount, `AuthLayer`/`ContextValidationLayer` config, `TrustedSubject` non-user principals, ConnectError mapping, east-west client transport (`build_connect_transport` + self-heal) | [fusion-rpc](references/fusion-rpc.md)              |
-| JWT token make/decrypt, password hashing, OAuth2 / Aliyun ACS3  | [fusion-security](references/fusion-security.md)                      |
+| Axum handler shape, `WebError`, `WebServerBuilder`, `WebAuth`, `RateLimiter` | [fusion-web](references/fusion-web.md)                     |
+| ConnectRPC mount, `AuthLayer` (JWE / `AuthTokenResolver` opaque mode), `ContextValidationLayer` config, `TrustedSubject` non-user principals, ConnectError mapping, east-west client transport (`build_connect_transport` + self-heal) | [fusion-rpc](references/fusion-rpc.md) |
+| JWT token make/decrypt, password hashing, OAuth2 / Aliyun ACS3, `captcha`, `wechat` 原语 | [fusion-security](references/fusion-security.md)                      |
 | MQ producer/consumer plugin, `fusion.mq` config, zombie reaping | [fusion-mq](references/fusion-mq.md)                                  |
+| WeChat 登录编排（三凭据面 / 锚定策略 / session_key 纪律）、xpay 虚拟支付、push 回调验签解析 | [fusion-weixin](references/fusion-weixin.md)                        |
+| 对象存储 Operator 工厂、预签名 URL（云 native / fs HMAC）、后端 feature 映射 | [fusion-storage](references/fusion-storage.md)                    |
+| Durable workflow：定义校验 / 推进决策 / `WorkflowService` / outbox·timer workers | [hetuflow](references/hetuflow.md)                                  |
 | `ModelManager<C>` / `ModelContext`, `DbxPostgres` + sqlx repo shape, transactions, `SqlError`, **v0.2 → v0.3 migration table** | [fusion-sql](references/fusion-sql.md)      |
-| LLM provider factory, graph-flow Task/Graph/Session, usage metering, streaming STT | [fusion-ai](references/fusion-ai.md)                |
+| OpenAI-compatible LLM wire (Chat Completions / Responses 工厂分化), graph-flow Task/Graph/Session, usage metering + `usage_batch` 批量落库, streaming STT, TTS/声纹 providers | [fusion-ai](references/fusion-ai.md) |
 | Feature flag combinations, top-level re-exports, quick-start    | [fusions](references/fusions.md)                                      |

@@ -119,7 +119,7 @@ consumer.reap_zombie("service-b", Duration::from_secs(300)).await?;
 
 `reap_zombie` is required. If a worker crashes after `claim_pending` but
 before `mark_processed` / `mark_failed`, the row stays `processing`; a
-background task must periodically reset stale rows or they are silently
+background task MUST periodically reset stale rows or they are silently
 stuck.
 
 ## Best Practices

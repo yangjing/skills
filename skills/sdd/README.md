@@ -7,7 +7,7 @@
 跨边界交付的通用规范 skill。规则按"换什么会失效"分三层：
 
 - **`references/`**：换栈、换项目都不变的方法论规则（契约形状、命名、分层、依赖、文档载体…）。
-- **`stacks/`**：换项目不变、换栈就变的落地形态（protobuf-connectrpc / rust-postgres / react-tanstack-antd 的类型映射、框架 API、生成链）。
+- **`stacks/`**：换项目不变、换栈就变的落地形态（protobuf-connectrpc / rust-postgres / react-tanstack-antd / harmonyos-arkts / react-native-ios 的类型映射、框架 API、生成链）。
 - **项目 overlay**：换项目一定变的取值（路径、包名、词表、命令、迁移策略）——由调用方仓库的 `sdd.overlay.md` 提供。
 
 skill **项目中立**：本文不做具体取值。`SKILL.md` 只做**触发路由**与**执行协议**，条款全部在分册中，按需加载、不预读。
@@ -29,7 +29,7 @@ skill **项目中立**：本文不做具体取值。`SKILL.md` 只做**触发路
 | 新增或重命名概念 / 字段 / 枚举 / 权限码 / 路由 | naming-conventions |
 | 跨服务依赖、通信协议选型、复制边界、边界信任模型 | service-dependency-contract |
 | 后端模块结构、新增 crate / 包、字段类型落哪层 | backend-layering |
-| 前端 route / Provider / 远程数据 / 金额与日期渲染 | frontend-conventions |
+| 前端 route / Provider / 远程数据 / 金额与日期渲染 / 表单交互与敏感值脱敏 / 控件组件层 | frontend-conventions（移动端分栈：react-native-ios / harmonyos-arkts） |
 | 多语言能力、命名空间、文案真相源归属、fallback | i18n-conventions |
 | 判断某条规则该不该存在 / 是否重复 / 该放哪层 | sdd-overview §2–3 |
 
@@ -103,7 +103,9 @@ sdd/
 │   ├── README.md                # 本层导览：现有适配层索引 + 新增适配层步骤 + 归属判断
 │   ├── protobuf-connectrpc.md
 │   ├── rust-postgres.md
-│   └── react-tanstack-antd.md
+│   ├── react-tanstack-antd.md
+│   ├── harmonyos-arkts.md
+│   └── react-native-ios.md
 ├── templates/                   # feature-spec / project-overlay / stack-adapter 骨架
 ├── scripts/
 │   └── check-spec-conformance.py  # 规范符合性检查（C1–C5，PEP 723 自包含）

@@ -1,6 +1,10 @@
+---
+status: active
+version: v3  # 2026-07-30
+---
+
 # SDD 分册总览（Spec-Driven Development）
 
-> **Status**: active · **Version**: v3（2026-07-30）
 > **定位**：通用的基于规格的开发规范集。**业务与项目无关**——不绑定具体项目、仓库路径、服务名、crate / 包名、命令脚本或组织命名
 > **规范语言**：全集统一使用 BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **本文职责**：分册总览 + overlay 边界（§2）+ 规范自审方法（§3）。规范条款一律在各分册，本文不复述

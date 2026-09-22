@@ -31,6 +31,7 @@ fusions = { version = "0.3", features = ["api", "oauth"] }
 | `oauth`     | JWT + OAuth2               | security + fusion-security/with-oauth  |
 | `ai`        | LLM providers + graph_flow | fusion-ai                              |
 | `rpc`       | ConnectRPC                 | fusion-rpc, connectrpc                 |
+| `weixin`    | 微信登录编排               | fusion-weixin                          |
 | `ulid`      | ULID 支持                  | ulid, utoipa/ulid                      |
 
 ### 可选功能
@@ -43,12 +44,12 @@ fusions = { version = "0.3", features = ["api", "oauth"] }
 
 ### 便捷组合
 
-| Feature        | 包含                            |
-| -------------- | ------------------------------- |
-| `full`         | web + db + security + ai + rpc  |
-| `api`          | web + db + security             |
-| `web-server`   | web + db                        |
-| `microservice` | web + db + security + rpc       |
+| Feature        | 包含                                 |
+| -------------- | ------------------------------------ |
+| `full`         | web + db + security + ai + rpc + weixin |
+| `api`          | web + db + security                  |
+| `web-server`   | web + db                             |
+| `microservice` | web + db + security + rpc            |
 
 ### 默认 Features
 
@@ -89,11 +90,15 @@ pub use fusion_web as web;
 #[cfg(feature = "db")]
 pub use fusion_sql as sql;
 
+#[cfg(feature = "weixin")]
+pub use fusion_weixin as weixin;
+
 #[cfg(feature = "web")]
 pub mod web_utils;
 ```
 
-`fusion-mq` is not re-exported by `fusions`; import it as `fusion_mq::*`.
+`fusion-mq`、`fusion-storage`、`hetuflow*` are not re-exported by `fusions`;
+import them as `fusion_mq::*` / `fusion_storage::*` / `hetuflow::*`.
 
 ## Error 模型
 

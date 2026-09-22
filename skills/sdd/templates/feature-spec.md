@@ -1,6 +1,12 @@
+---
+status: draft | active | deprecated
+owner: <负责人>
+last_updated: <YYYY-MM-DD>
+compliance: L0 | L1 | L2
+---
+
 # <功能名>
 
-> **Status**: draft | active | deprecated · **Owner**: `<负责人>` · **LastUpdated**: `<YYYY-MM-DD>` · **Compliance**: L0 | L1 | L2
 > **规范语言**：BCP 14（RFC 2119/8174）
 
 <!--

@@ -6,6 +6,9 @@ ssot: 本文件只登记项目侧取值与指针；通用规则正文留在 skil
 
 # <项目名> — sdd 项目 overlay
 
+> **母版链接语义**：本文件内全部 `sdd/...` 相对链接按「放置位置 = skill 安装目录同级」
+> （见下文放置说明）在**实例化后**解析——源仓 `templates/` 内不直接可达属预期形态，
+> MUST NOT 按源仓相对路径「修复」（会破坏实例化后的链接）。
 > skill 主入口：[`SKILL.md`](sdd/SKILL.md) · 分册总览：[`sdd-overview.md`](sdd/references/sdd-overview.md) · 栈适配层：[`stacks/`](sdd/stacks/README.md)
 
 本文件是本仓对项目中立 sdd skill 的 overlay。**只登记 [sdd-overview §2](sdd/references/sdd-overview.md#2-项目-overlay-边界) 禁止写入 skill 的内容**：真实路径、包名、命令、专属词表、当前阶段的兼容性放宽。

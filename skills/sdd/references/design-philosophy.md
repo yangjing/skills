@@ -1,6 +1,10 @@
+---
+status: active
+version: v4  # 2026-07-30
+---
+
 # 设计哲学（模块内部设计准则）
 
-> **Status**: active · **Version**: v4（2026-07-30）
 > **适用范围**：Bounded Context 内部的代码结构、模块划分与重构判定；规约 Module / Function / Type 粒度的好坏判据
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **理论基础**：John Ousterhout《A Philosophy of Software Design》。**本文只承载判据、落地锚点与本文档集内的张力调和，不复述该书的概念讲解**——需要理论背景时读原书

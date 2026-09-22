@@ -1,6 +1,10 @@
+---
+status: active
+version: v1  # 2026-07-30
+---
+
 # 栈适配层：Protocol Buffers + ConnectRPC + Buf
 
-> **Status**: active · **Version**: v1（2026-07-30）
 > **适配对象**：[`../references/SPECIFICATION.md`](../references/SPECIFICATION.md) §7 · [`../references/service-dependency-contract.md`](../references/service-dependency-contract.md) §4 · [`../references/spec-driven-development.md`](../references/spec-driven-development.md) §2
 > **规范语言**：BCP 14（RFC 2119/8174）
 > **本层职责**：工具链细则 + **换协议时的映射判据**。契约条款本身在上述分册，本文 MUST NOT 复制

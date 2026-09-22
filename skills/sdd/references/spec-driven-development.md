@@ -1,6 +1,10 @@
+---
+status: active
+version: v3  # 2026-07-26
+---
+
 # Spec-Driven Development（Sprint / Milestone 流程）
 
-> **Status**: active · **Version**: v3（2026-07-26）
 > **适用范围**：把 [SPECIFICATION §4](./SPECIFICATION.md#4-sdd-总流程跨边界变更) 的跨边界变更流程落成 Sprint / Milestone 可执行物料——proto 骨架、代码生成链、目录结构、迭代 checklist
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **核心原则**：契约先行、并行开发、联调验证

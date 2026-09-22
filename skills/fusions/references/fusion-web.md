@@ -159,6 +159,37 @@ let auth = WebAuth::default()
     .into_layer();
 ```
 
+### `RateLimiter` — keyed token-bucket 限流（进程内）
+
+公开端点防滥用前置件。单机口径：状态在进程内存，多实例部署时每实例独立计数
+（阈值按实例数折算，或届时升级外部存储——本层不引依赖）。超限响应固定
+`429 {"error":"rate_limited"}`（机器面英文，用户可见文案由前端按错误码兜底），
+并带 `Retry-After` 头（夹在 1..=3600s——`per_minute = 0` 的一次性配额耗尽后
+按上限 3600s 报告，不输出饱和值）。
+
+```rust
+use fusions::web::middleware::RateLimiter;   // middleware 是 pub mod，crate 根无 re-export
+
+// burst 突发容量 + per_minute 持续补充速率（0 = 一次性配额）
+let limiter = RateLimiter::per_ip(20, 60)
+    .with_key_extractor(Arc::new(|req| {
+        // 任意维度键：账号 id、API key、租户……默认 IP 提取器见下
+        key_from(req)
+    }))
+    .into_layer();
+
+let router = Router::new().route("/login", post(login)).layer(limiter);
+```
+
+- **默认 key 提取器（IP）**：代理 `X-Forwarded-For` 首段 → `X-Real-IP` →
+  `ConnectInfo<SocketAddr>` extension → `"unknown"`。XFF 信任前提 = 前置反代
+  覆写该头；直连暴露场景下客户端可伪造 XFF 谋取更大 key 空间——由部署面保证
+  反代在位。
+- **内存上界**：空闲桶硬上限 65,536 个 key，触达时清理空闲桶（只损失计数精度，
+  不放大拒绝面）。
+- `Clone` = 共享同一计数器，适合随 router 装配；`check(&key)` 可脱离中间件
+  单独调用（如登录前手工检查）。
+
 ### `Ctx` from request extensions
 
 ```rust

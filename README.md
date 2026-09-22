@@ -21,7 +21,7 @@
 [`README`](skills/axum-tower/README.md) · [`SKILL.md`](skills/axum-tower/SKILL.md)
 
 ### 🔧 fusions
-Fusion Rust 后端框架（`fusions` 及子 crate）的核心库模式与决策规范：依赖注入、类型化 DB 上下文、Axum/ConnectRPC 集成、JWT/MQ/AI、BMC CRUD、RLS 事务。
+Fusion Rust 后端框架（`fusions` 及子 crate，v0.3）的核心库模式与决策规范：依赖注入、类型化 DB 上下文（手写 sqlx 仓储，非 ORM）、Axum/ConnectRPC 集成、JWT/MQ/AI、微信登录、对象存储、Durable Workflow、RLS 事务。
 [`README`](skills/fusions/README.md) · [`SKILL.md`](skills/fusions/SKILL.md)
 
 ### 🔍 rust-reviewer

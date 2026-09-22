@@ -38,17 +38,17 @@ metadata:
 | **一个域该有多少 RPC / 能否合并 / 粒度下限** | [SPECIFICATION §7.5](references/SPECIFICATION.md#75-服务方法粒度contract-surface-收敛强制) | — |
 | 分页口径、cursor / offset 选择、页码控件桥接 | [SPECIFICATION §15](references/SPECIFICATION.md#15-分页) | — |
 | 兼容性、破坏性变更、演进窗口 | [SPECIFICATION §11](references/SPECIFICATION.md#11-兼容性与演进跨边界默认兼容模式) | — |
-| 质量门禁、测试分层、UAT 记录纪律 | [SPECIFICATION §13](references/SPECIFICATION.md#13-质量门禁通用) | — |
+| 质量门禁、测试分层、UAT 记录纪律 | [SPECIFICATION §13](references/SPECIFICATION.md#13-质量门禁通用) | 移动端测试形态：[react-native-ios](stacks/react-native-ios.md) / [harmonyos-arkts](stacks/harmonyos-arkts.md) |
 | **维护 / 编写 UAT 文档、覆盖矩阵、自动化证据映射、判定「UAT 已覆盖 / 已签收」** | [SPECIFICATION §13.3](references/SPECIFICATION.md#133-uat-与自动化测试的边界auto-证据规则)（UAT ≠ 自动化测试；AUTO 证据 ≠ 签收） | — |
 | **质量专项验收：判定「导出质量 / 兼容性等是否该立专项」、编写验收矩阵或对照证据文档、专项归档时判定矩阵去留与覆盖矩阵回流** | [SPECIFICATION §13.4](references/SPECIFICATION.md#134-质量专项验收矩阵与对照证据)（立项判据 / 产出最小结构 / 归档保留与回流） | — |
 | 执行计划归档、规则回流 | [SPECIFICATION §4.6](references/SPECIFICATION.md#46-执行计划归档回流) | — |
 | 拆迭代任务、定义契约包、代码生成链、迭代收尾 checklist | [spec-driven-development](references/spec-driven-development.md) | [protobuf-connectrpc](stacks/protobuf-connectrpc.md) §2.3 |
 | **评审模块设计 / 判定是否重构 / 新增 service 或 class / 写或改代码注释 / PR 判断代码质量** | [design-philosophy](references/design-philosophy.md)（深模块、信息隐藏、设计两次、十二气味；注释准入 = §8） | — |
 | **是否加抽象 / 新依赖 / 新包 / 重写、MVP 范围裁剪、核心架构能否用临时方案、过时代码处置、改 DB schema·API·存储配置是否需审批** | [design-philosophy §14](references/design-philosophy.md#14-实现与依赖取舍基线yagni--依赖最小化--工程纪律)（YAGNI / 依赖最小化 / 工程纪律） | — |
-| 新增或重命名概念 / 字段 / 枚举 / 权限码 / 路由；命名争议 | [naming-conventions](references/naming-conventions.md) | [react-tanstack-antd](stacks/react-tanstack-antd.md) §5（路由命名） |
+| 新增或重命名概念 / 字段 / 枚举 / 权限码 / 路由 / 测试与规格产物文件；命名争议 | [naming-conventions](references/naming-conventions.md)（批次编号禁入 = §13） | [react-tanstack-antd](stacks/react-tanstack-antd.md) §5（路由命名） |
 | 设计跨服务依赖、选通信协议、定复制边界、**边界信任模型** | [service-dependency-contract](references/service-dependency-contract.md)（信任模型 = §4.6） | [protobuf-connectrpc](stacks/protobuf-connectrpc.md) §2.2 |
 | 后端模块结构、新增 crate / 包、**字段类型落哪层**、handler 里写 SQL 类问题 | [backend-layering](references/backend-layering.md)（类型分层 = §3.5） | [rust-postgres](stacks/rust-postgres.md) |
-| 前端 route / Provider / 远程数据 / 组件用法 / 样式 / 金额与日期渲染 | [frontend-conventions](references/frontend-conventions.md) | [react-tanstack-antd](stacks/react-tanstack-antd.md) |
+| 前端 route / Provider / 远程数据 / 组件用法 / 样式 / 金额与日期渲染 / **表单交互（label · 键盘 · 日期输入 · 弹层承载 · 预填意图）与敏感值脱敏** · **操作出口与异步反馈（弹层取消 / 死按钮 / 定时器生命周期）** · **控件组件层与规格单源（组件封装 / 逃逸口 / 跨端清单口径）** | [frontend-conventions](references/frontend-conventions.md)（表单与敏感值 = §8 · 出口与反馈 = §9 · 控件组件层 = §10） | [react-tanstack-antd](stacks/react-tanstack-antd.md) · 移动端分栈：[react-native-ios](stacks/react-native-ios.md)（表单键盘 = §7 · 布局与手势 = §6）/ [harmonyos-arkts](stacks/harmonyos-arkts.md)（表单键盘 = §5 · 控件封装 = §7） |
 | 多语言能力、命名空间、文案真相源归属、fallback | [i18n-conventions](references/i18n-conventions.md) | [react-tanstack-antd](stacks/react-tanstack-antd.md) §6 |
 | **判断某条规则该不该存在 / 是否重复 / 是否可验证 / 该放哪层** | [sdd-overview §2–3](references/sdd-overview.md#2-项目-overlay-边界)（overlay 边界 + 第一性原理审查） | — |
 | 项目技术栈不在 `stacks/` 表内 | [stacks/README §2](stacks/README.md#2-新增一个适配层)（新增适配层） | — |

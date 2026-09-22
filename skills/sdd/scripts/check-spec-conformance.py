@@ -122,6 +122,9 @@ RE_LOWER_BCP14 = re.compile(
 RE_UPPER_BCP14 = re.compile(r"(?<![A-Za-z])(MUST NOT|MUST|SHOULD NOT|SHOULD|MAY|SHALL)(?![A-Za-z])")
 
 # C5：文档控制字段。兼容 YAML frontmatter 与 blockquote 头部两种载体。
+# 载体规范（SPECIFICATION §4.1，2026-08-23 收紧）：正文文档控制字段 MUST 用 YAML frontmatter，
+# blockquote 仅剩门面例外（承担控制字段义务的目录索引 README）合法。本检查只验字段
+# 存在性、不验载体违规；blockquote 识别保留是为该例外与存量仓迁移期不产生假阳性。
 # `\**` 吸收 markdown 强调标记：blockquote 头部写作 `> **Status**: active`，
 # 冒号与关键词之间隔着 `**`，不吸收就会把合规头部全报成缺字段。
 # 新鲜度字段的三种 casing（last_updated / last-updated / lastUpdated / LastUpdated）都要认——

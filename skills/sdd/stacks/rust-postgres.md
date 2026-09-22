@@ -1,6 +1,10 @@
+---
+status: active
+version: v1  # 2026-07-30
+---
+
 # 栈适配层：Rust + PostgreSQL + sqlx
 
-> **Status**: active · **Version**: v1（2026-07-30）
 > **适配对象**：[`../references/backend-layering.md`](../references/backend-layering.md) §3.5（数据类型分层）
 > **规范语言**：BCP 14（RFC 2119/8174）
 > **本层职责**：该栈的依赖开关与生态细则，以及**换栈时的映射判据**。类型映射表本身在 backend-layering §3.5，本文 MUST NOT 复制

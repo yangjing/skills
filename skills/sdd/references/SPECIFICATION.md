@@ -1,6 +1,10 @@
-# SDD 规范（Spec-Driven Development）
+---
+status: active
+version: v2.4  # 2026-08-27（§1.1 增目录级文档分工——目录管理规范收口 AGENTS.md、README 只做索引；§13.1 测试框架形态归位 stacks/ 适配层）
+compliance: L1  # 默认
+---
 
-> **Status**: active · **Version**: v2.2（2026-07-30）· **Compliance**: L1（默认）
+# SDD 规范（Spec-Driven Development）
 > **适用范围**：面向微服务或单体架构的跨边界交付；不假定编程语言、框架与仓库形态
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **定位**：SDD 文档集总纲，**业务与项目无关**。项目路径、命令、词表、迁移策略一律走项目 overlay（边界见 [sdd-overview §2](./sdd-overview.md#2-项目-overlay-边界)）
@@ -54,6 +58,7 @@
 - 关键业务流程或技术流程（实体状态机、跨边界调用链、数据流、关键时序）MUST 用 mermaid 绘制；MUST NOT 用 ASCII art 或仅以散文替代可维护的图示。
 - 图示是规格的一部分而非装饰：流程语义变更时，维护者 MUST 同步更新对应 mermaid 图。
 - 面向 AI Agent / LLM 自动执行、审核或加载的规则 MUST 写成执行协议，格式见 [sdd-overview §3.3](./sdd-overview.md#33-agent-facing-规则检查)；MUST NOT 只用解释性段落表达可执行规则。
+- **目录级文档分工**：一个目录树的管理规范（使用规则 / 登记规则 / 生命周期协议）MUST 收口到该目录的 `AGENTS.md`（或项目 Agent 规则文件）；同目录 `README.md` MUST NOT 承载规范条款，只承担索引与说明（每个文件是什么、指路链接）。规范散落在多个 README 会形成平行真相源，且 README 面向人类浏览的定位会被执行协议破坏。（`AGENTS.md` 为[开放标准](https://agents.md/)，支持目录级嵌套、近者优先，与本条分工一致。）
 
 术语一致性、无重复定义、用语精准简练的规范见 §2（术语）与 §13（质量门禁 docs），本节不重述。
 
@@ -136,6 +141,9 @@
 规格文档结构：
 
 - 文档控制：Title、Status(draft|active|deprecated)、Owner、LastUpdated、Compliance(L0|L1|L2)
+  - 载体 = YAML front matter：承担控制字段义务的文档 MUST 以文件首行 `---` 围栏块承载控制字段，MUST NOT 以 blockquote 字段行（`> **Status**: ...`）承载（2026-08-23 收紧——双载体并存的实证教训 = 同一目录树跨批形式漂移、治理工具提取口径分裂）。front matter MUST 起于文件首行——非首行的围栏块不构成 front matter；键名 casing 同一文档集 SHOULD 统一（如 `status` / `last_updated` / `version`）；字段值的补充说明用 `#` 行内注释承载，MUST NOT 括号混入值；值含 `&` 等 YAML 特殊字符时 MUST 加引号。
+  - 门面体裁例外：`README.md` 与 Agent 规则文件（`CLAUDE.md` / `AGENTS.md`）被渲染工具 / harness 直接消费，MUST NOT 承载 front matter；其中承担控制字段义务的目录索引 README（§4.1.1 ② 类）以 blockquote 字段行承载——blockquote 载体仅保留此域。
+  - LastUpdated = 内容最后实质变更日；纯形式整理（载体迁移 / 重排版）SHOULD NOT 刷新。
 - 目标：Why、InScope、OutOfScope
 - 边界：BoundedContext、Producer(SoR)、Consumer、依赖强度（运行时强依赖/事实输入/治理/可选增强）
 - 契约：API/事件/Schema/错误码/权限码/策略字段映射（概念↔API↔策略）
@@ -526,7 +534,7 @@ ReceiptEnvelope（最小）：
 
 ### 13.1 测试分层
 
-项目 SHOULD 采用分层测试架构，具体框架与命令由项目 overlay 固化：
+项目 SHOULD 采用分层测试架构。各层的测试框架**形态**由 `stacks/` 适配层承载（项目栈已建适配层时，见 [stacks/README](../stacks/README.md)）；框架版本、命令与设备形态由项目 overlay 固化：
 
 1. **Level 1 — 单元测试**：纯逻辑，无 DB/HTTP，快速反馈，开发时频繁运行。
 2. **Level 2 — API 契约测试**：通过真实 RPC / HTTP 请求验证服务是否严格遵守 proto 契约，覆盖正常路径和异常路径。

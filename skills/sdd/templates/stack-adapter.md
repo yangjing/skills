@@ -1,6 +1,10 @@
+---
+status: active
+version: v1  # <YYYY-MM-DD>
+---
+
 # 栈适配层：<技术栈名>
 
-> **Status**: active · **Version**: v1（`<YYYY-MM-DD>`）
 > **适配对象**：[`../references/<分册>.md`](../references/sdd-overview.md) §N（列出本适配层覆盖的全部分册与章节）
 > **规范语言**：BCP 14（RFC 2119/8174）
 > **本层职责**：把通用规则落到这一组具体技术的 API、配置与生态细则上。**MUST NOT 写项目路径、包名、端口、域名**（属项目 overlay）；**MUST NOT 复制 references 的条款正文**（违反 SSOT，改为链接）

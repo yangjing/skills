@@ -1,6 +1,10 @@
+---
+status: active
+version: v1  # 2026-07-30
+---
+
 # 栈适配层：React 19 + TanStack Router/Query + Ant Design 6 + Vite
 
-> **Status**: active · **Version**: v1（2026-07-30）
 > **适配对象**：[`../references/frontend-conventions.md`](../references/frontend-conventions.md)（主）、[`../references/naming-conventions.md`](../references/naming-conventions.md) §10、[`../references/i18n-conventions.md`](../references/i18n-conventions.md) §5 / §8
 > **规范语言**：BCP 14（RFC 2119/8174）
 > **本层职责**：把通用前端约定落到这一组具体库的 API、插件顺序、版本陷阱上。**MUST NOT 写项目路径、包名、端口、域名**——那些属项目 overlay
