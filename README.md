@@ -40,6 +40,10 @@ Fusion Rust 后端框架（`fusions` 及子 crate，v0.3）的核心库模式与
 基于规格的开发（Spec-Driven Development）通用规范集：契约先于实现、文档只写代码无法表达的内容、规则必须可验证。覆盖契约形状 / 命名 / 分层 / 依赖 / 前端 / i18n 等，规则按 `references`（通用）/ `stacks`（技术栈形态）/ 项目 overlay 三层组织。与 `doc-governance` 分工：本 skill 管「写什么 / 怎么写才合规」，doc-governance 管「已写文档的一致性审计」。
 [`README`](skills/sdd/README.md) · [`SKILL.md`](skills/sdd/SKILL.md)
 
+### ✍️ doc-writer-style
+基于 15 年博客写作经验（2010-2026，140+ 篇文章）的中文博客写作风格：问题驱动、第一人称经验流、具体细节，按教程 / 架构 / 经验 / 选型 / 随笔 / 翻译六类文章给结构模式，附逐类替换方案的 AI 味检查清单；站点约定（frontmatter、文件名、分类标签）走 overlay 机制。
+[`README`](skills/doc-writer-style/README.md) · [`SKILL.md`](skills/doc-writer-style/SKILL.md)
+
 ## 安装
 
 用 [`npx skills`](https://github.com/vercel-labs/skills) 安装到任意支持的 AI 编程助手。
@@ -61,6 +65,7 @@ npx skills add yangjing/skills --skill rust-reviewer
 npx skills add yangjing/skills --skill committing
 npx skills add yangjing/skills --skill doc-governance
 npx skills add yangjing/skills --skill sdd
+npx skills add yangjing/skills --skill doc-writer-style
 ```
 
 **安装多个 skill：**

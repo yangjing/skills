@@ -13,10 +13,11 @@
     },
     {
       "title": "文档与笔记",
-      "description": "规格驱动开发、文档一致性治理、电子书读书笔记生成与 EPUB 翻译。",
+      "description": "规格驱动开发、文档一致性治理、中文博客写作风格、电子书读书笔记生成与 EPUB 翻译。",
       "skills": [
         "sdd",
         "doc-governance",
+        "doc-writer-style",
         "ebook-ai-notes",
         "translate-epub"
       ]

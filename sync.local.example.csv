@@ -18,3 +18,4 @@ fusions,~/hetus/hetu-creative/repos/fusions/.agents/skills/fusions
 rust-reviewer,~/hetus/hetu-creative/repos/fusions/.agents/skills/rust-reviewer
 doc-governance,~/hetus/hetuos/.agents/skills/doc-governance
 sdd,~/hetus/hetuos/.agents/skills/sdd
+doc-writer-style,~/workspaces/yangjing-site/.agents/skills/doc-writer-style

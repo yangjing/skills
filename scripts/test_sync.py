@@ -235,8 +235,9 @@ class TestRunCheckSemantics(SyncTestCase):
         (alt / "SKILL.md").write_text("v1")  # 落选 sync 源落后
         entries = [sync.Entry("b", str(alt), "sync"),
                    sync.Entry("b", str(chosen), "sync")]
-        # 无 git 目录 → mtime 择新；把 chosen 的 mtime 调新确保其胜出
-        os.utime(chosen / "SKILL.md", (1790000000, 1790000000))
+        # 无 git 目录 → mtime 择新。把落选源 mtime 调到 epoch 0 确保 chosen 胜出；
+        # 不能反过来给 chosen 设固定"新"时间——固定值会随日期过期（1790000000 ≈ 2026-09-27）
+        os.utime(alt / "SKILL.md", (0, 0))
         rc, out, _ = self.capture(sync.run_check, entries)
         self.assertEqual(rc, 0)
         self.assertIn("备选源与本仓库不同", out)
