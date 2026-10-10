@@ -13,7 +13,7 @@
 [`README`](skills/ebook-ai-notes/README.md) · [`SKILL.md`](skills/ebook-ai-notes/SKILL.md)
 
 ### 🌐 translate-epub
-翻译 EPUB 电子书：先通读全书建立统一术语库，再逐章翻译，默认产出双语版本（译文显示在原文下方），也可仅保留译文，并可选打包成 `.epub`。译文复用原文 HTML 标签结构与 CSS class，渲染效果与原书一致。
+翻译 EPUB 电子书：先通读全书建立统一术语库，再逐章翻译，翻完做一轮全书审校（程序化扫描 + 并行只读审校代理抓语义级误译），默认产出双语版本（译文显示在原文下方），也可仅保留译文，并可选打包成 `.epub`。译文复用原文 HTML 标签结构与 CSS class，渲染效果与原书一致。
 [`README`](skills/translate-epub/README.md) · [`SKILL.md`](skills/translate-epub/SKILL.md)
 
 ### 🦀 axum-tower

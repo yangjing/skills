@@ -46,7 +46,7 @@ npx skills add <owner>/skills --skill translate-epub -g -y
 
    输出结构化 JSON：源语言、章节清单（按 spine 阅读顺序 + 行数）、TOC 路径、图片数、文本元素标签统计。
 
-3. **建立术语库**（全书翻译前必做）：通读全书提取术语，产出 `<output-dir>/GLOSSARY.md`（按主题域分组；代码标识符 / API / 框架 / 协议名保留英文；跨章节不一致的译法全书统一）。
+3. **建立术语库**（全书翻译前必做）：通读全书提取术语，产出 `<output-dir>/GLOSSARY.md`（按主题域分组；代码标识符 / API / 框架 / 协议名不翻译，落「翻译术语」表恒等行；「保留英文」机器强制段默认留空——keep 检查要求词在所有含中文文件必现，录入不全书必现的词必然误报；跨章节不一致的译法全书统一；翻译术语 / 保留英文 / 禁用词三段 `##` 标题必须按正则可在场，其他段标题不得复用这三段字样，裁决记录等放独立文件）。
 4. **复制源目录结构**：`cp -R` 源 EPUB 到输出目录（后缀区分），保留图片 / CSS / 元数据 / OEBPS 结构。
 5. **逐章翻译**：对每个正文 HTML 逐个块级元素翻译，译文复用原文标签与 class。每章翻完立即验证，全绿再进下一章。
 6. **更新导航文件**：`toc.ncx`、`contents.html` 的已译章节改为双语或译文文本。
@@ -58,6 +58,8 @@ npx skills add <owner>/skills --skill translate-epub -g -y
    # 可选打包成 .epub
    uv run skills/translate-epub/scripts/build_epub.py "<output-dir>" "<output-dir>.epub"
    ```
+
+8. **全书审校**（翻完所有章节后必做一轮——逐章验证只保证结构与术语，抓不住语义级误译）：先程序化扫描（裁决废弃译法 grep、译文行弯引号、英文引用残留、关键术语跨章漂移），再用并行只读审校代理逐章对照 EN/ZH 报告问题（不修改文件），主流程逐条核实后统一修复、复验。
 
 各元素类型（标题 / 段落 / 图注 / 表格 / 列表 / 代码）的翻译正确模式与易踩的坑，详见 [`SKILL.md`](SKILL.md) 与 [`references/bilingual-patterns.md`](references/bilingual-patterns.md)。
 
