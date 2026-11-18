@@ -244,7 +244,7 @@ use fusions::common::time::{now_offset, OffsetDateTime};
 use fusions::web::{Router, WebError, WebResult, WebServerBuilder, ok_json};
 use axum::{Json, Path, routing::{get, post}};
 
-// 数据库（v0.3：无宏、无 BMC、无 Page —— SQL 走 sqlx + DbxPostgres）
+// 数据库（无宏、无 BMC、无 Page —— SQL 走 sqlx + DbxPostgres）
 use fusions::db::{TypedDbPlugin, DbPlugin};
 use fusions::sql::{DbConfig, ModelContext, ModelManager, SqlError};
 use fusions::sql::store::{Dbx, DbxPostgres};

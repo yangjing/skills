@@ -141,7 +141,7 @@ headers（见下节）。
 - **应用无关**: 所有应用配置通过 `AuthConfig` 注入，Layer 本身不包含领域逻辑
 - **豁免机制**: 支持路径前缀豁免 (`exclude_paths`) 和 RPC service/method 豁免 (`exclude_rpcs`)
 - **Claim 映射**: 灵活配置 JWT claim → HTTP header 的映射规则（仅 JWE 模式消费）
-- **非用户主体**: `TrustedSubject` extension + `trusted_subject_rpcs` 白名单（v0.3 新增，见下）
+- **非用户主体**: `TrustedSubject` extension + `trusted_subject_rpcs` 白名单（见下）
 
 ### AuthConfig
 
@@ -159,7 +159,7 @@ AuthConfig {
         ("example.auth.v1.AuthService", "RefreshToken"),
     ],
 
-    // v0.3 新增：已验证的 TrustedSubject 可触达的 (service, method)。
+    // 已验证的 TrustedSubject 可触达的 (service, method)。
     // 不是豁免 —— 无 token 且无 subject 的调用方照样 401。见下节。
     trusted_subject_rpcs: &[
         ("example.permission.v1.PermissionService", "ListUsersByPermission"),
@@ -225,7 +225,7 @@ let router = Router::new()
 7. 按 claim_mappings 注入 headers → 放行
 ```
 
-### TrustedSubject —— 非用户主体（v0.3 新增）
+### TrustedSubject —— 非用户主体
 
 给「兄弟 bin 的后台任务」这类**没有用户 token** 的调用方开的窄口子：由应用自己的
 **外层** layer 验证来源后，塞一个 `TrustedSubject` **request extension**。

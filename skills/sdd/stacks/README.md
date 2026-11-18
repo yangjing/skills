@@ -1,6 +1,6 @@
 # 技术栈适配层（stacks）
 
-> **Status**: active · **Version**: v1（2026-07-30）
+> **Status**: active · **LastUpdated**: 2026-11-17
 > **本层职责**：承载「换项目不变、换栈就变」的落地形态。规则本身在 [`../references/`](../references/sdd-overview.md)，项目取值在项目 overlay，本层只管**技术选型带来的差异**
 
 ## 0. Agent 执行协议
@@ -21,6 +21,8 @@
 | [react-tanstack-antd.md](./react-tanstack-antd.md) | React 19 + TanStack Router/Query + Ant Design 6 + Vite | frontend-conventions（全册）· naming-conventions §10 · i18n-conventions §5 / §8 |
 | [react-native-ios.md](./react-native-ios.md) | React Native + Hermes + Metro + Xcode（iOS 壳） | frontend-conventions（全册）· SPECIFICATION §13.1 |
 | [harmonyos-arkts.md](./harmonyos-arkts.md) | HarmonyOS + ArkTS + hvigor + napi + DevEco Testing Hypium | frontend-conventions（全册）· SPECIFICATION §13.1 |
+| [wechat-miniprogram-skyline.md](./wechat-miniprogram-skyline.md) | 微信小程序原生（skyline 渲染 + glass-easel + TypeScript 无框架，开发者工具内置编译） | frontend-conventions（全册）· SPECIFICATION §13.1 |
+| [vue3-opentiny.md](./vue3-opentiny.md) | Vue 3 + OpenTiny TinyVue + Vite | frontend-conventions（全册）· naming-conventions §10 · i18n-conventions §5 / §8 |
 
 前三个是 `references/` 各分册的**默认基线栈**——分册中出现的具体类型、API 与协议名均来自它们。使用其它技术栈的项目 MUST 按 §2 建立自己的适配层。
 
@@ -32,7 +34,7 @@
 
 1. **定位替换点**：在目标 references 分册中找出所有绑定默认基线栈的条款。判据是**换掉技术选型后这条还成立吗**——不成立的即替换点。
 2. **区分硬要求与形态**：多数条款是「要求」而非「实现」。例如「东西向 transport MUST 自愈」是协议无关的硬要求，「ConnectRPC over HTTP/2」才是形态。**硬要求 MUST 原样保留**，只替换形态。
-3. **复制骨架**：以 [`../templates/stack-adapter.md`](../templates/stack-adapter.md) 为骨架新建 `<stack-slug>.md`，节号与被适配分册的节号对齐。
+3. **复制骨架**：以 [`../templates/stack-adapter.md`](../templates/stack-adapter.md) 为骨架新建 `<stack-slug>.md`，章节按主题自组织、标题带「对应 [references §N](锚点)」链接定位（MUST NOT 依赖裸节号与分册配对）。
 4. **只写差异**：适配层 MUST NOT 复制 references 的条款正文，只写「本栈下这条落成什么」。
 5. **登记**：在本文 §1 表中追加一行；在被适配分册的头部「栈落地形态」处补链接。
 

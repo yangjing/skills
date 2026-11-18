@@ -1,6 +1,6 @@
 ---
 status: active
-version: v6  # 2026-09-02 增 §8.5 驻 store 表单新建入口复位原语条款（持盈 r417 实证回流）；v5 2026-09-01 增 §8.2 键盘布局 / §8.5 预填意图 / §9 操作出口与异步反馈 / §10 控件组件层与跨端清单口径（移动端双栈第二批实证回流）；v4 2026-08-30 增 §8
+last_updated: 2026-11-17
 ---
 
 # 前端工程约定（SPA 通用）
@@ -8,7 +8,7 @@ version: v6  # 2026-09-02 增 §8.5 驻 store 表单新建入口复位原语条�
 > **适用范围**：单页 Web 应用（SPA）的工程组织原则——route 职责边界、Provider 生命周期、远程数据分层、渲染纪律；§8 表单交互与敏感值、§9 操作出口与异步反馈、§10 控件组件层与跨端清单口径为跨端通用（Web / 移动端同守）。**与具体框架无关**
 > **规范语言**：BCP 14（RFC 2119/8174）—— MUST、MUST NOT、SHOULD、SHOULD NOT、MAY
 > **本文不重述**：路由文件命名 → [naming-conventions §10.1](./naming-conventions.md#101-route-文件命名)；i18n 工程规范 → [i18n-conventions](./i18n-conventions.md)；质量门禁 → [SPECIFICATION §13](./SPECIFICATION.md#13-质量门禁通用)；fixtures 与开发数据策略 → [SPECIFICATION §4.4](./SPECIFICATION.md#44-开发数据策略)
-> **栈落地形态**：React 19 + TanStack Router / Query + Ant Design 6 + Vite 的具体 API、插件顺序、组件约束见 [`../stacks/react-tanstack-antd.md`](../stacks/react-tanstack-antd.md)；移动端分栈（RN iOS 壳 / HarmonyOS ArkTS）见 [`../stacks/react-native-ios.md`](../stacks/react-native-ios.md) · [`../stacks/harmonyos-arkts.md`](../stacks/harmonyos-arkts.md)。本文只定原则与禁忌，不写框架 API
+> **栈落地形态**：React 19 + TanStack Router / Query + Ant Design 6 + Vite 的具体 API、插件顺序、组件约束见 [`../stacks/react-tanstack-antd.md`](../stacks/react-tanstack-antd.md)；Vue 3 + OpenTiny TinyVue + Vite 分栈见 [`../stacks/vue3-opentiny.md`](../stacks/vue3-opentiny.md)；移动端分栈（RN iOS 壳 / HarmonyOS ArkTS / 微信小程序 skyline）见 [`../stacks/react-native-ios.md`](../stacks/react-native-ios.md) · [`../stacks/harmonyos-arkts.md`](../stacks/harmonyos-arkts.md) · [`../stacks/wechat-miniprogram-skyline.md`](../stacks/wechat-miniprogram-skyline.md)。本文只定原则与禁忌，不写框架 API
 
 ## 0. Agent 执行协议
 

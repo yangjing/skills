@@ -103,7 +103,7 @@ async fn list_users(user_svc: UserSvc) -> WebResult<UserPage> {
 }
 ```
 
-> v0.3 起框架不再提供 `Page` / `PageResult`（随 sea-query 栈一并删除）。
+> 框架不提供 `Page` / `PageResult`。
 > 分页请求与响应 DTO 由应用自己定义（本仓走 proto 契约），下面示例中的
 > `PageQuery` / `UserPage` 即应用侧类型。
 

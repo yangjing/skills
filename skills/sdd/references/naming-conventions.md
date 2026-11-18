@@ -1,6 +1,6 @@
 ---
 status: active
-version: v4  # 2026-09-18 增 §13 长期产物命名与临时批次编号
+last_updated: 2026-10-14
 ---
 
 # 命名规范（Naming Conventions）
@@ -141,7 +141,7 @@ version: v4  # 2026-09-18 增 §13 长期产物命名与临时批次编号
 
 ### 8.3 列表 vs 详情字段差异化授权 → `Obligation.mask_fields`
 
-历史上为表达「列表脱敏、详情完整」的授权差异，曾考虑拆 `:list` / `:read`。**该方向已被否决**：
+列表 vs 详情的字段差异化授权 MUST NOT 拆成 `:list` / `:read` 权限码：
 
 - 单一 `xxx:read` 权限码授予列表 + 详情视图族
 - PDP / policy service 在响应中携带 `Obligation.mask_fields`（列表场景脱敏 PII，详情场景不脱敏或更小 mask）

@@ -13,9 +13,8 @@ description: >
   credential surfaces, anchoring policy, xpay/push), object storage
   (opendal operator + presigned URLs), durable workflow, AI
   openai_compatible wire (Chat/Responses factory split)/graph_flow/STT/
-  TTS/voiceprint/usage-batch metering, RLS/session-var transactions, and
-  migrating off the v0.2 `fusionsql` / sea-query / BMC API. Do not use for
-  frontend code.
+  TTS/voiceprint/usage-batch metering, and RLS/session-var
+  transactions. Do not use for frontend code.
 ---
 
 # fusions Framework (v0.3)
@@ -29,21 +28,6 @@ nothing about tenants, scopes, claims, or RLS policies — those come from the
 **application crate** via an `AppContext: ModelContext` impl and config
 structs (`AuthConfig`, `ContextValidationConfig`, `MqConfig`); keep business
 semantics out of fusion crates.
-
-## v0.3 breaking changes (read before touching DB code)
-
-| Area | Change |
-| ---- | ------ |
-| SQL crates | `fusionsql` → **`fusion-sql`**, `fusionsql-core` → **`fusion-sql-core`**, `fusionsql-macros` **deleted** |
-| ORM surface | The whole sea-query stack is **gone**: `Fields` / `FilterNodes` / `SeaFieldValue` macros, `OpVal*`, `FilterGroups`, `DbBmc` / `BmcConfig` / `base::*` CRUD, `page::{Page, Paged, PageResult, OrderBys}`, `with_filter_interceptor`. Write SQL with sqlx against `DbxPostgres`. |
-| Auth | `fusion-rpc` adds `TrustedSubject` + `AuthConfig::trusted_subject_rpcs` (**`AuthConfig` gained a field** — literal constructions MUST add it) |
-| Password | `fusion_core::security::pwd` moved to **`fusion-security`** (`fusions::security::pwd`); `SecurityError` gained 5 pwd variants (`InvalidHashFormat` = old `Error::InvalidFormat`, renamed), `fusion_core::security::Error` is JWT/HMAC-only now |
-| AI metering | `AiUsageEvent::from_ctx_usage` → **`from_ctx_tokens`**; new `from_ctx_audio` for STT; `AiUsageEvent` is now `#[non_exhaustive]` (construct via those two fns only) |
-| AI model factory | `Client::completion_model()` now returns the **Chat Completions** form; the Responses form moved to the new **`Client::responses_model()`**; `chat_completions_model()` and `completions_api()` are **deleted** |
-| AI STT | `paraformer` module **deleted** → `dashscope::FunAsrRealtime`; `AudioStreamConfig::hotwords` → `vocabulary_ids` + `context_items`; `AudioEncoding::as_provider_str` removed |
-| Misc | `SensitiveString` lost its `sea_query::Value` / `Nullable` impls; `fusion-core` dropped the unused `fusionsql` feature |
-
-Full migration table (old symbol → replacement) at the top of [fusion-sql](references/fusion-sql.md).
 
 ## Module Map
 
@@ -126,27 +110,46 @@ Read these once; they trip people up because they diverge from default Rust / Ax
   a bare `BEGIN; …; COMMIT;` (no `set_config(...)`) — an RLS application
   MUST go through its own helper that layers the session vars on top
   (here: `hetu_core::db::with_read_txn` / `with_write_txn`).
+- **Never hold a transaction while acquiring a second pool connection.**
+  The recurring trap: one handler needs **two different RLS contexts**
+  (cross-domain reads under a permissive `login` context, then a write
+  under the caller's `participant` context) and opens the second tx
+  inside the first — at pool max, concurrent such requests each hold one
+  connection while waiting for another → convoy self-deadlock (all time
+  out; `idle in transaction` × pool max). Equally forbidden when the
+  second acquire hides inside **a helper that self-opens a short tx**
+  (audit record, tenant lookup, notify push); `tokio::spawn`-ed side
+  tasks are the only exemption (they don't block the parent — no cycle).
+  Two correct shapes, pick by context equivalence: (a) if the caller's
+  tx context satisfies the helper's query, use an **executor-form
+  helper** that takes the caller's connection (`&mut PgConnection`,
+  stays in the same tx — b022 read paths); (b) if the contexts genuinely
+  differ, use **sequential single-connection phases**: batch all reads
+  into ONE tx of the permissive context (JOIN / `EXISTS` in one query),
+  run heavy crypto (argon2, ~100ms) **outside** any tx, then open the
+  write tx (b027 `remove_email_credential`). Truth source (baoming
+  workspace): `docs/designs/db-pool-concurrency-discipline.md`.
 - **`DbxPostgres` manual transactions, never raw `sqlx::Transaction`.**
   Cross-module signatures take `dbx: &DbxPostgres`. `dbx.execute()` returns
   `u64` (rows affected) — `.rows_affected()` on it is a compile error.
   Details: [fusion-db reference](references/fusion-db.md#dbxpostgres-手动事务).
-- **DB access is hand-written sqlx through `DbxPostgres` — there is no BMC.**
-  v0.3 deleted the whole BMC / query-builder layer. Repo functions run
+- **DB access is hand-written sqlx through `DbxPostgres` — there is no BMC
+  or query-builder layer.** Repo functions run
   `dbx.fetch_*(sqlx::query_as(...).bind(..))` / `dbx.execute(sqlx::query(...))`.
   `dbx.db()` (the bare `&PgPool`) is the one thing to avoid: it bypasses the
-  transaction and its `SET LOCAL` session vars. Audit columns are no longer
+  transaction and its `SET LOCAL` session vars. Audit columns are not
   auto-filled — write them explicitly from `mm.ctx_ref()?`.
-- **Client-supplied `ORDER BY` has no framework validation any more.** The BMC
-  allowlist died with the sea-query stack, and sqlx cannot `bind` an
+- **Client-supplied `ORDER BY` has no framework validation.** No framework-side
+  allowlist exists, and sqlx cannot `bind` an
   identifier — every client sort/filter column MUST pass through an
   application-side allowlist to a static column name before it reaches the
-  SQL string. `Page` / `PageResult` no longer exist either; the DTO is the
+  SQL string. `Page` / `PageResult` do not exist either; the DTO is the
   application's (here: the proto contract).
 - **`AuthLayer` / `ContextValidationLayer` are application-agnostic.** All
   specifics — exempt paths/RPCs, claim mappings, error codes — come from
   the config struct passed at construction. Nothing application-specific
   gets hardcoded inside the layers.
-- **`TrustedSubject` is a request *extension*, never a header** (v0.3). It
+- **`TrustedSubject` is a request *extension*, never a header**. It
   lets an application-owned **outer** layer vouch for a non-user principal
   (a sibling bin's background job with no user token) — a client can forge
   any header but cannot set an extension. Fail-closed on two axes: the
@@ -185,7 +188,12 @@ Read these once; they trip people up because they diverge from default Rust / Ax
   no JWE decryption. Both modes keep the anti-forgery guarantees (returned
   header names stripped from the inbound request, unparseable values fail
   closed); the resolver error type is deliberately `()` — every failure
-  maps to the same 401, the resolver logs what it can distinguish.
+  maps to the same 401, the resolver logs what it can distinguish. In
+  opaque mode, persist only `sha256(token)` hex server-side (lookup and
+  revoke by hash — logout / change-password delete-by-hash); the plaintext
+  token lives only in the response body and memory, so a DB leak can't
+  become session forgery (repo precedents: `ops_tokens`, b027
+  `auth_tokens`).
 - **Outbound system-mode tokens are minted with `[fusion.security.pwd]`
   `secret_key`.** When a bin calls a sibling bin's RPC as a system
   principal (no user token), it mints a JWE via
@@ -342,7 +350,7 @@ let auth_layer = fusions::rpc::AuthLayer::new(security_setting, fusions::rpc::Au
     exclude_paths: &["/health"],
     preserve_identity_headers_for_paths: &[],
     exclude_rpcs: &[("myapp.auth.v1.AuthService", "Login")],
-    // v0.3: RPCs a verified TrustedSubject extension may reach. Not an
+    // RPCs a verified TrustedSubject extension may reach. Not an
     // exemption — callers with neither token nor subject still get 401.
     trusted_subject_rpcs: &[("myapp.permission.v1.PermissionService", "ListUsersByPermission")],
     claim_mappings: &[
@@ -494,6 +502,6 @@ touching that module — they are detailed and would crowd context.
 | WeChat 登录编排（三凭据面 / 锚定策略 / session_key 纪律）、xpay 虚拟支付、push 回调验签解析 | [fusion-weixin](references/fusion-weixin.md)                        |
 | 对象存储 Operator 工厂、预签名 URL（云 native / fs HMAC）、后端 feature 映射 | [fusion-storage](references/fusion-storage.md)                    |
 | Durable workflow：定义校验 / 推进决策 / `WorkflowService` / outbox·timer workers | [hetuflow](references/hetuflow.md)                                  |
-| `ModelManager<C>` / `ModelContext`, `DbxPostgres` + sqlx repo shape, transactions, `SqlError`, **v0.2 → v0.3 migration table** | [fusion-sql](references/fusion-sql.md)      |
+| `ModelManager<C>` / `ModelContext`, `DbxPostgres` + sqlx repo shape, transactions, `SqlError` | [fusion-sql](references/fusion-sql.md)      |
 | OpenAI-compatible LLM wire (Chat Completions / Responses 工厂分化), graph-flow Task/Graph/Session, usage metering + `usage_batch` 批量落库, streaming STT, TTS/声纹 providers | [fusion-ai](references/fusion-ai.md) |
 | Feature flag combinations, top-level re-exports, quick-start    | [fusions](references/fusions.md)                                      |

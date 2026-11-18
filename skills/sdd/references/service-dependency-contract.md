@@ -1,6 +1,6 @@
 ---
 status: active
-version: v2  # 2026-07-26
+last_updated: 2026-07-26
 ---
 
 # 服务依赖契约

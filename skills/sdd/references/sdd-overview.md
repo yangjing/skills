@@ -1,6 +1,6 @@
 ---
 status: active
-version: v3  # 2026-07-30
+last_updated: 2026-07-30
 ---
 
 # SDD 分册总览（Spec-Driven Development）
@@ -129,6 +129,7 @@ SDD 文档集只记录可跨项目复用的规则。以下内容 MUST 放在具�
 对 SDD 规则或 Feature Spec 做 review 时，逐项检查：
 
 - 是否通过 [SPECIFICATION §1.0](./SPECIFICATION.md#10-文档内容准入第一原则) 内容准入（该节自带准入清单、豁免与逐段自检问题）——**这是第一项，不过即删，无需再看后续**。
+- ①②③ 类规格 / 设计文档正文是否夹带版本批次史（升版记录、changelog、增补批次链）或评审 / 决策讨论过程——现行结论才进正文，历史归 git（[SPECIFICATION §1.0](./SPECIFICATION.md#10-文档内容准入第一原则) 禁入清单）。
 - 这条规则是否指向一个基本事实，而不是偏好或历史习惯。
 - 是否只有一个真实源；其它文档是否只链接，不重复定义。
 - 是否能被执行者在 Sprint / Milestone 内验证。

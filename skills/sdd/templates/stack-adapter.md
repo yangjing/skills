@@ -1,6 +1,6 @@
 ---
 status: active
-version: v1  # <YYYY-MM-DD>
+last_updated: <YYYY-MM-DD>
 ---
 
 # 栈适配层：<技术栈名>
@@ -12,8 +12,10 @@ version: v1  # <YYYY-MM-DD>
 <!--
 本模板对应 stacks/README §2「新增一个适配层」。使用前 MUST 删除所有 <占位> 与本注释块。
 
-节号 MUST 与被适配分册的节号对齐（本文 §N ↔ references 分册 §N），
-这样 agent 命中某章节时能直接定位到对应适配节。
+章节按主题自组织（采纳结论 → 各形态 → 依赖开关 → 换栈映射判据），定位 MUST 走标题内
+「对应 [references §N](锚点)」链接，MUST NOT 依赖裸节号与分册隐式配对——骨架自身的
+采纳结论 / 依赖开关 / 换栈判据节在分册中无对应节，数字镜像不成立；锚点失效由
+doc-governance check-links.py 门禁捕获。
 -->
 
 ## 0. Agent 执行协议

@@ -90,9 +90,11 @@ PEP 723 自包含脚本，零第三方依赖——门禁不该因为装不上包
 
           CANDIDATE  docs/specs/README.md  →  `conceptual-entity-model.md`
 
-      `#` 开头的行视为注释。白名单只压制 CANDIDATE 输出，不影响 BROKEN 判定。
-      条目防腐由脚本自动承担：一轮扫描中未被消费的条目（引用已消失，或目标已落地、
-      豁免变多余）会以 `STALE` 报出提醒回删（非阻断）。
+      `#` 开头的行视为注释，注释归属紧随其上的数据行、随条目整段回删。白名单只压制
+      CANDIDATE 输出，不影响 BROKEN 判定。条目防腐由脚本自动承担：一轮扫描中未被消费
+      的条目（引用已消失，或目标已落地、豁免变多余）会以 `STALE` 报出提醒回删（非阻断），
+      并给出「数据行 + 随行注释」的行号区间——只删数据行留孤儿注释的话，注释无
+      (src, token) 键，任何机制都看不见它。
 
 除 markdown `[text](path)` 链接外，额外做两类反引号纯文本引用校验，二者严重性不同：
 
@@ -495,9 +497,35 @@ def resolve_adr_token(num: str) -> bool:
 _ALLOWLIST_LINE_RE = re.compile(r"^(?:CANDIDATE\s+)?(\S+)\s*→\s*`?([^`\s]+)`?$")
 
 
-def _load_candidate_allowlist() -> set[tuple[str, str]]:
+def _parse_allowlist_lines(lines: list[str]) -> list[dict]:
+    """白名单纯解析：按出现序返回条目（数据行行号 + (src, token) + 随行注释行号）。
+
+    注释归属规则 = 紧随其数据行、至下一数据行 / 空行 / 文件尾之间的 `#` 行；
+    不在任何数据行之后的注释（文件头说明）不属任何条目。条目回删 MUST 连同随行
+    注释整段删除——只删数据行会留孤儿注释，而注释无 (src, token) 键，STALE
+    机制 structurally 看不见它们（本仓 2026-10 清理轮即犯此漏）。"""
+    entries: list[dict] = []
+    cur = None
+    for no, raw in enumerate(lines, 1):
+        line = raw.strip()
+        if not line:
+            cur = None
+            continue
+        if line.startswith("#"):
+            if cur is not None:
+                cur["comments"].append(no)
+            continue
+        m = _ALLOWLIST_LINE_RE.match(line)
+        if m:
+            cur = {"line": no, "pair": (m.group(1), m.group(2)), "comments": []}
+            entries.append(cur)
+    return entries
+
+
+def _load_candidate_allowlist_entries() -> list[dict]:
     """CANDIDATE 白名单：人工甄别后确认无需处理的 `(src, token)` 对，登记后不再重报。
-    行格式与脚本输出一致（可直接粘贴 CANDIDATE 行）；`#` 开头为注释。"""
+    行格式与脚本输出一致（可直接粘贴 CANDIDATE 行）；`#` 开头为注释，注释紧随其
+    数据行、随条目整段回删。"""
     raw = os.environ.get("DOC_GOV_CANDIDATE_ALLOWLIST", "").strip()
     p = Path(raw) if raw else ROOT / ".doc-gov-candidate-allowlist"
     if not p.is_absolute():
@@ -505,16 +533,8 @@ def _load_candidate_allowlist() -> set[tuple[str, str]]:
     try:
         lines = p.read_text(encoding="utf-8").splitlines()
     except OSError:
-        return set()
-    allowed: set[tuple[str, str]] = set()
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        m = _ALLOWLIST_LINE_RE.match(line)
-        if m:
-            allowed.add((m.group(1), m.group(2)))
-    return allowed
+        return []
+    return _parse_allowlist_lines(lines)
 
 
 def _stale_reason(src: str, token: str) -> str:
@@ -578,9 +598,27 @@ def self_test() -> int:
     expect(not _segments_match_tail(("x", "main.md"), ("x", "main.md")),
            "末段对齐要求目标路径更长（等长应已按仓根解析）")
 
+    # 白名单解析：注释归属紧随其后的数据行（供 STALE 整段回删指引定位）；
+    # 文件头 / 空行后的无主注释不属任何条目
+    wl_entries = _parse_allowlist_lines([
+        "# 文件头说明，不属于任何条目",
+        "CANDIDATE  a.md  →  `x.md`",
+        "# 甄别理由一行",
+        "",
+        "# 空行后的注释无数据行前导，不归属",
+        "b.md  →  `y.md`",
+        "# 理由第一行",
+        "# 理由第二行",
+    ])
+    expect(len(wl_entries) == 2, "白名单条目数解析错")
+    expect(wl_entries[0]["line"] == 2 and wl_entries[0]["pair"] == ("a.md", "x.md")
+           and wl_entries[0]["comments"] == [3], "注释未归属紧随其后的数据行")
+    expect(wl_entries[1]["line"] == 6 and wl_entries[1]["pair"] == ("b.md", "y.md")
+           and wl_entries[1]["comments"] == [7, 8], "多行注释归属错（无主注释被误吞）")
+
     if fails:
         return 2
-    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过（标题与链接）/ 末段对齐 均正确）")
+    print("OK: self-test 通过（CJK / 双连字符 / 链接折叠 / 重名 -N / 代码块跳过（标题与链接）/ 末段对齐 / 白名单注释归属 均正确）")
     return 0
 
 
@@ -627,7 +665,9 @@ def main() -> int:
 
     broken: list[tuple[str, str]] = []
     candidates: list[tuple[str, str]] = []
-    allowlist = _load_candidate_allowlist()
+    allowlist_entries = _load_candidate_allowlist_entries()
+    allowlist = {e["pair"] for e in allowlist_entries}
+    entry_by_pair = {e["pair"]: e for e in allowlist_entries}
     consumed: set[tuple[str, str]] = set()
     suppressed = 0
     files = list(iter_md_files())
@@ -681,11 +721,17 @@ def main() -> int:
 
     # 白名单防腐：一轮扫描下来未被消费的条目 = 引用已消失或豁免已多余，报 STALE 提醒
     # 回删（非阻断——过期条目不产生错误结论，只是噪声，但留着会让白名单失去可信度）。
+    # 回删指引给到行号区间：条目 = 数据行 + 其随行注释，MUST 整段删——只删数据行会
+    # 留孤儿注释，注释无 (src, token) 键、此后任何机制都看不见它。
     stale = sorted(allowlist - consumed)
     if stale:
-        print(f"\n白名单过时条目（不影响退出码，请回删 .doc-gov-candidate-allowlist 对应行）：")
+        print(f"\n白名单过时条目（不影响退出码，请回删 .doc-gov-candidate-allowlist 对应行——注释随条目整段回删，防孤儿注释）：")
         for src, token in stale:
-            print(f"STALE  {src}  →  `{token}`  （{_stale_reason(src, token)}）")
+            entry = entry_by_pair.get((src, token))
+            rng = ""
+            if entry and entry["comments"]:
+                rng = f"；整段回删 = 行 {entry['line']}–{entry['comments'][-1]}（数据行 + {len(entry['comments'])} 行注释）"
+            print(f"STALE  {src}  →  `{token}`  （{_stale_reason(src, token)}{rng}）")
         print(f"Total stale: {len(stale)}")
 
     return exit_code

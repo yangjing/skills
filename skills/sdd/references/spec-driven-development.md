@@ -1,6 +1,6 @@
 ---
 status: active
-version: v3  # 2026-07-26
+last_updated: 2026-07-26
 ---
 
 # Spec-Driven Development（Sprint / Milestone 流程）
@@ -167,11 +167,9 @@ PR 描述的最小字段集（Why/What、验收标准、契约变更、影响边
 
 ### 2.6 完成计划回流
 
-迭代交付完成后，执行计划只保留审计价值；仍然有效的规则 MUST 回流到长期规格，计划本身降级为非权威材料。
+回流的完整规则——执行协议（Trigger / Load / Assess / Apply / Conflict / Output / MUST NOT）、完成项内联收缩、归档清理、BDD 场景——见 [SPECIFICATION §4.6](./SPECIFICATION.md#46-执行计划归档回流)（**唯一真实源**），本节不重述。
 
-回流的完整规则——执行协议（Trigger / Load / Assess / Apply / Conflict / Output / MUST NOT）、归档清理纪律、BDD 场景——见 [SPECIFICATION §4.6](./SPECIFICATION.md#46-执行计划归档回流)（**唯一真实源**），本节不重述。
-
-**在迭代中的位置**：功能合入主线（§2.5）之后执行；回流未完成或未记录「无需回流」判定时，MUST NOT 关闭该迭代。
+**在迭代中的位置**：功能合入主线（§2.5）之后执行；活执行计划中单任务判定完成的即时回流同样适用（§4.6 Trigger）；回流未完成或未记录「无需回流」判定时，MUST NOT 关闭该迭代。
 
 ## 3. 迭代 Checklist
 

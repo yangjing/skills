@@ -22,6 +22,24 @@ flexibility / future-proofing 维度。**仅适用于 lib crate**——bin crate
 - [ ] **调用方控制分配与摆放**——接收 `&str` 而非 `String`、`AsRef<Path>` 而非
       `PathBuf`、不在库内部主动 clone；避免 out 参数（传 `&mut Vec` 收结果）改用
       返回值。把「要不要拷贝 / 拷到哪」的决定权交给调用方。（C-CALLER-CONTROL、C-NO-OUT）
+- [ ] **引用参数不点名具体容器 / 包装**——`&T` 不 `&Box<T>`、`&[T]` 不 `&Vec<T>`、
+      `&str` 不 `&String`、`Option<&T>` 不 `&Option<T>`。前三者 clippy 默认拦
+      （`ptr_arg` / `borrowed_box`），**`&Option<T>` 机器不拦、人审独占**。（Google）
+- [ ] **lib / app 分层决定入参出参形态**——高复用库代码只需迭代就收
+      `impl IntoIterator`（而非 `&[T]`）、返回优先 `impl Iterator` 而非 `Vec<T>`
+      （例外：多数调用方要 owned / 实现天然产 Vec / 需随机索引 / 算法本质是
+      for 循环 / 目的就是建集合 / 返回已有 Vec）；应用代码收 `&[T]` 即可。
+      `impl Into<T>` 入参只在调用点人体工程学至上时用（code bloat + 推断代价）。
+      （Google、C-GENERIC）
+- [ ] **泛型 reader/writer 按值收 `R: Read` / `W: Write`**——std 已有
+      `impl Read for &mut R`，调用方多段读取传 `&mut f` 即可；doc 里提醒一次，
+      新手常卡在「函数把 reader 吃了」。（C-RW-VALUE）
+- [ ] **暴露了可避免二次工作的中间结果**——`binary_search` 未命中也返回插入位；
+      `from_utf8` 错误回传有效前缀 offset + 归还输入所有权；`insert` 返回旧值。
+      问：这个 API 让调用方少做了一次本可免掉的查找 / 拷贝吗？（C-INTERMEDIATE）
+- [ ] **builder 形态与终结方法匹配**——非消费式优先（`&mut self` 配置 +
+      `&self` 终结，`Command` 式：one-liner 与复杂配置两全）；终结确需所有权时
+      全链 `self`→`self`（消费式，调用方逐步重赋值）。（C-BUILDER）
 
 > 红线：如果「最短的正确写法」比「看起来对但其实是错的写法」还长，必报。
 
@@ -55,6 +73,9 @@ flexibility / future-proofing 维度。**仅适用于 lib crate**——bin crate
 - [ ] `'static` bound 以后会放松成 `'a`——指出后续会有一次破坏性变更，或一次两都落地。
 - [ ] 返回位置的 `impl Trait`：rust-analyzer hover 里用户看到什么？一个没有方法的
       不透明类型是死胡同。
+- [ ] **复杂返回类型可用 newtype 藏表示**——比 `impl Trait` 多一层「具体承诺」：
+      newtype 还能 impl `Debug` / `Clone` 等具体 trait，且表示可后续更换不破坏
+      下游。（C-NEWTYPE-HIDE）
 
 ## 5. Naming & semantic precision
 
@@ -62,6 +83,9 @@ flexibility / future-proofing 维度。**仅适用于 lib crate**——bin crate
       （你要的东西我们不做）还是 `InvalidArgument`（你坏了）？区别决定用户是重试、
       提 bug、还是改自己的代码。
 - [ ] `new` vs `with_*` vs `from_*` vs `build`——crate 内是否一致？
+- [ ] **转换方法落在最具体的类型上，且倾向 `to_`/`as_`/`into_` 而非 `from_`**——
+      前者可链式调用；两个类型中「更具体者」（如 `str` 之于 `&[u8]`）同时提供
+      双向转换，避免污染宽泛类型。（C-CONV-SPECIFIC）
 - [ ] public 名字里的缩写和行话。`ctx`/`req`/`resp` 没问题；项目内部代号不行。
 - [ ] 名字和 std / 生态同类对得上吗？用户靠 `Cow`/`Arc`/`IntoIterator` 做模式匹配；
       一个「差一点点」的 `MaybeBorrowed` 应该说明它和 `Cow` 哪里不同。
@@ -106,6 +130,11 @@ SemVer 表面是版本号，实质是「下游会不会被你的改动 break」�
       `impl Trait` 捕获的生命周期变了会破坏下游。
 - [ ] **Cargo feature 移除 / 改 `default` feature**——下游 `Cargo.toml` 隐式失效。
 - [ ] **MSRV 抬升**——对锁老工具链的下游是 breaking（见 code-review §13）。
+- [ ] **去掉 `const fn` 的 `const`**——下游在 const 上下文的使用会编译失败；只在
+      确信长期保持 const 时才标。（Google）
+- [ ] **`impl From<other::Error> for MyError` 把不稳定依赖提进公共 API**——即使
+      错误变体是私有的，公共 `From` impl 也算 public dependency；被依赖 crate
+      不稳定则本 crate 不能宣称稳定。（C-STABLE）
 
 > 工具辅助：`cargo-semver-checks` 能机器化检出大部分隐藏破坏；CI 接入可把本节
 > 从人工审变成自动门禁。审查时确认是否接入。

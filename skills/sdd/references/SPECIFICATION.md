@@ -1,6 +1,6 @@
 ---
 status: active
-version: v2.4  # 2026-08-27（§1.1 增目录级文档分工——目录管理规范收口 AGENTS.md、README 只做索引；§13.1 测试框架形态归位 stacks/ 适配层）
+last_updated: 2026-10-14
 compliance: L1  # 默认
 ---
 
@@ -40,6 +40,7 @@ compliance: L1  # 默认
 - **复述代码逻辑**：函数体、算法步骤、可由读代码直接得到的控制流与数据结构。
 - **复述外部标准与官方文档**：协议规范、语言/库的通用用法、通用安装命令序列。MUST 改为链接到权威来源，只保留**本项目做出的选择**。
 - **复述已在别处正式定义的条款**：违反 SSOT（§13 docs 门禁）。MUST 改为相对链接；确需摘要时 MUST NOT 附带条款正文——「主题 → 链接」即可，带正文的摘要必然滞后于真相源。
+- **历史版本与讨论过程**（①②③ 类规格 / 设计文档，§4.1.1）：版本批次史（升版记录、changelog、增补批次链、版本号字段）与评审 / 决策讨论过程（决策表、建议采纳记录、建稿 / 迁移史注记）MUST NOT 进入规格正文与文档控制字段——文档只承载现行事实结论，历史以 git 历史与 commit 指针为真相源。上表「决策理由」准入项保留的是结论与防重提依据（如被否决的替代方案），MUST NOT 扩张为评审过程记录。
 
 **豁免（即使可推断、即使读代码能得到，也 MUST 写明）**——判据是**推断错误的代价**，不是能否推断：
 
@@ -141,7 +142,7 @@ compliance: L1  # 默认
 规格文档结构：
 
 - 文档控制：Title、Status(draft|active|deprecated)、Owner、LastUpdated、Compliance(L0|L1|L2)
-  - 载体 = YAML front matter：承担控制字段义务的文档 MUST 以文件首行 `---` 围栏块承载控制字段，MUST NOT 以 blockquote 字段行（`> **Status**: ...`）承载（2026-08-23 收紧——双载体并存的实证教训 = 同一目录树跨批形式漂移、治理工具提取口径分裂）。front matter MUST 起于文件首行——非首行的围栏块不构成 front matter；键名 casing 同一文档集 SHOULD 统一（如 `status` / `last_updated` / `version`）；字段值的补充说明用 `#` 行内注释承载，MUST NOT 括号混入值；值含 `&` 等 YAML 特殊字符时 MUST 加引号。
+  - 载体 = YAML front matter：承担控制字段义务的文档 MUST 以文件首行 `---` 围栏块承载控制字段，MUST NOT 以 blockquote 字段行（`> **Status**: ...`）承载（双载体并存的实证教训 = 同一目录树跨批形式漂移、治理工具提取口径分裂）。front matter MUST 起于文件首行——非首行的围栏块不构成 front matter；键名 casing 同一文档集 SHOULD 统一（如 `status` / `last_updated`）；字段值的补充说明用 `#` 行内注释承载，MUST NOT 括号混入值；值含 `&` 等 YAML 特殊字符时 MUST 加引号。
   - 门面体裁例外：`README.md` 与 Agent 规则文件（`CLAUDE.md` / `AGENTS.md`）被渲染工具 / harness 直接消费，MUST NOT 承载 front matter；其中承担控制字段义务的目录索引 README（§4.1.1 ② 类）以 blockquote 字段行承载——blockquote 载体仅保留此域。
   - LastUpdated = 内容最后实质变更日；纯形式整理（载体迁移 / 重排版）SHOULD NOT 刷新。
 - 目标：Why、InScope、OutOfScope
@@ -233,7 +234,7 @@ Compliance 分级判据（按文档所辖 Contract Surface 与数据面的最高
 
 **执行协议**：
 
-1. **Trigger**：计划从 active 转 completed、完成报告生成、长期文档引用 completed 计划、或代码 / 契约与计划描述不一致时，MUST 执行回流。
+1. **Trigger**：计划从 active 转 completed、**活执行计划中单任务判定完成**、完成报告生成、长期文档引用 completed 计划、或代码 / 契约与计划描述不一致时，MUST 执行回流。
 2. **Load**：读 completed 计划、当前代码 / 契约 / 测试证据，以及对应产品规格 / 设计文档 / 项目 overlay。
 3. **Assess**：**回流是「按需」动作**。逐去向（specs / designs / SDD）判定是否存在**仍有效且尚未落到 SSOT** 的规则，只回流需要的。判为无需回流的常见情形 = 纯执行无规则产出、结论已在功能提交时回流、结论已被后续 PR 覆盖或作废。
 4. **Apply**：只迁移仍被当前实现和契约验证的规则。技术实现约束 MUST 并入设计文档或项目 overlay；产品 / 功能行为 MUST 并入产品规格；可跨项目复用的协作规则 MUST 并入 SDD 文档集。一次性执行步骤、分支名、验证日志、临时 TODO 和过期路径 MUST 留在历史材料。
@@ -241,7 +242,9 @@ Compliance 分级判据（按文档所辖 Contract Surface 与数据面的最高
 6. **Output**：归档总结 MUST 点名已回流的 SSOT、保留为历史参考的文件、删除或标注的过时口径；**Assess 判为无需回流的去向 MUST 记录判定与理由**，供后续治理免于重复判断。
 7. **MUST NOT**：MUST NOT 为满足回流步骤复制已在 SSOT 的内容；MUST NOT 把代码路径、表结构、索引名、函数名、PR / commit / 批次 / 实施阶段写进产品规格与设计文档；MUST NOT 让现行 specs / designs / overlays / UAT / ADR / TODO 链接完成计划作为规范依据；**回流到 SSOT 的事实结论 MUST 自包含——MUST NOT 携带对源归档文件的指针引用（文件名、`§N` 节号、`见 <归档项>` 锚点），因为归档文件会被清理删除，残留引用即断链**。
 
-**归档清理**：完成计划中的执行步骤、批次拆分、commit、测试日志和临时裁定 SHOULD 删除，或保留在显式历史归档中；若保留，文档头部 MUST 标记为历史参考，且 MUST NOT 被索引挂为权威入口。删除或移动完成计划后 MUST 跑文档链接校验——broken link 即回流未完成的证据。
+**完成项内联收缩（活执行计划的记录形态）**：仍承载未完成任务的执行计划文档（Roadmap / 迭代计划等活文档）中，任务判定完成后回写 MUST 只登记「**任务名 + 定位指针（git commit / PR）**」的单行形态；过程明细、实测数据、验收记录、坑位备查 MUST NOT 写入活文档——它们的真相源是 commit message、测试代码与对应规格 / 设计文档。堆积完成明细的活文档会退化为历史记录文档：回写成本高、读者把过时明细当作现状、与 SSOT 形成双写漂移。完成过程产出的仍有效约束 MUST 先按上方执行协议回流到 SSOT，再回写指针。指针 MUST 可解析（commit 短哈希存在于当前仓历史，`git log` 可校验）——不可解析的指针即断链。
+
+**归档清理（整件转历史的完成计划）**：完成计划中的执行步骤、批次拆分、测试日志和临时裁定 SHOULD 删除，或保留在显式历史归档中；若保留，文档头部 MUST 标记为历史参考，且 MUST NOT 被索引挂为权威入口。删除或移动完成计划后 MUST 跑文档链接校验——broken link 即回流未完成的证据。
 
 ```gherkin
 Feature: 执行计划完成后的规格回流
@@ -279,6 +282,14 @@ Given 维护者把一个事实结论回流到现行 SSOT，但结论文字里保
 When 后续归档清理删除了该归档文件
 Then SSOT 中的指针引用即断链——broken link 是回流未自包含的证据
 And 维护者 MUST 在回流时只迁移自包含的事实结论，MUST NOT 携带文件名、节号或 "见 <归档项>" 锚点
+
+Scenario: 活执行计划中的任务完成回写
+Given 一个仍承载未完成任务的执行计划文档（Roadmap / 迭代计划等活文档）
+When 其中某任务判定完成
+Then 回写 MUST 收缩为「任务名 + 定位指针（git commit / PR）」单行形态
+And 过程明细、实测数据、验收记录 MUST NOT 写入该文档——真相源是 commit message、测试与对应规格 / 设计文档
+And 定位指针 MUST 可解析（commit 哈希存在于当前仓历史）
+And 若完成过程产出仍有效的跨边界约束，MUST 先按本 Feature 回流到 SSOT，再回写指针
 ```
 
 ## 5. 命名与字段映射（强制）
@@ -529,6 +540,7 @@ ReceiptEnvelope（最小）：
 - 交付前 MUST 至少执行与项目栈匹配的格式化、静态分析、类型检查（如适用）、测试与供应链检查（如适用）。
 - MUST 在 CI 中固化并可追溯质量门禁结果。
 - MUST NOT 用 AI Agent 自述替代 Verification Oracle 的证据；gate evidence MUST 来自命令输出、测试结果、生成产物一致性、审查记录或 approval 记录。
+- 验收 Oracle 的期望值 MUST 与可变状态解耦：MUST NOT 写死随业务数据演进而漂移的绝对值（行数 / 账号数 / 绑定取证日期），SHOULD 用判别式表达（`>= 1`、与对照查询的差分、布尔属性）——写死值在首次数据变更后即失效，自查者会把正常演进误判为回归。
 - docs：MUST 通过 [§1.0](#10-文档内容准入第一原则) 内容准入；SHOULD 保持链接可用、术语一致、无重复与无冲突，变更同步更新引用。
 - design：PR 描述 SHOULD 标注是否触发 [design-philosophy.md §12 十二种气味](./design-philosophy.md#12-十二种气味red-flags)（A-L）；连续 ≥3 项气味 MUST 回炉至 [§7 设计两次](./design-philosophy.md#7-设计两次design-it-twice)，不允许仅在实现层修补绕过。
 

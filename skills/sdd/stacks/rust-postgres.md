@@ -1,6 +1,6 @@
 ---
 status: active
-version: v1  # 2026-07-30
+last_updated: 2026-10-10
 ---
 
 # 栈适配层：Rust + PostgreSQL + sqlx
@@ -39,6 +39,10 @@ backend-layering §3.5 要求「若 SQL 驱动需额外 feature 才能直接 bin
 - **`Option<T>` 与 `NOT NULL`**：可空列 MUST 映射 `Option<T>`；非空列 MUST NOT 用 `Option<T>` 兜底。用 `Option` 包非空列会把「schema 违约」降级成「业务分支」，缺陷被静默吞掉。
 - **查询宏与运行时查询**：`sqlx::query!` 系列宏提供编译期校验，但要求构建期可连数据库或存在离线缓存。项目 MUST 在 overlay 中声明采用哪种模式及缓存文件的更新命令。
 - **事务上下文传递**：下层持久化方法 MUST 接收调用方传入的事务上下文执行 SQL，MUST NOT 自行开启事务（事务边界归属见 [backend-layering §3.2](../references/backend-layering.md#32-application)）。
+- **动态拼接 SQL 逃过编译期列校验**：`format!` 拼接 / `AssertSqlSafe` / 纯字符串 SQL 不走 `query!` 宏的编译期校验——列名与约束漂移只在运行时暴露。该类 SQL 的列引用 MUST 逐字核对契约 DDL（真相源）；覆盖该 RPC 的运行时测试 SHOULD 作为兜底（2026-10-10 实证：`ORDER BY` 引用 DDL 从未有的列、`INSERT` 引用不存在列——均首提交即漂移，因种子数据直插绕过该路径而长期潜伏，静态门禁与单测全绿）。
+- **事务内吞错 = 事务中毒**：事务中任一语句失败后整个事务中止，后续语句统一报 `current transaction is aborted`——`unwrap_or_default()` 等吞掉的错误会把真因转移到后续第一条报错语句。事务内查询 MUST NOT 无痕吞错：失败 MUST 至少留 warn 日志，且该事务 MUST 视为不可继续（2026-10-10 实证：被吞的列错误转移到三条语句之后的查询才报 internal，真因靠 psql 逐语句复现定位）。
+- **NOT NULL DEFAULT 列 MUST NOT 显式绑 `None`**：显式 NULL 覆盖列默认值 → 违反非空约束；可空配置字段绑定时按 DDL 默认语义 `unwrap_or(默认值)`。**prost 生成枚举的 `unwrap_or_default()` 是 CHECK 域陷阱**：proto 枚举默认 0，常落在 DB `CHECK (IN …)` 域外——枚举列绑定 MUST 显式选域内默认值（2026-10-10 实证：`delivery CHECK (1..3)`、`ship_timing CHECK (1..2)` 下默认 0 违反约束）。
+- **RLS 下 `SELECT … FOR UPDATE` 按行的 UPDATE policy 判定可见性**（非 SELECT policy）：无 UPDATE 权限的主体锁行返回零行而非报错——「跨主体写」路径的行锁 MUST 在目标行属主语境执行：先普通 SELECT 载入归属 → 切换会话语境 → 再行锁（同一行锁，并发互斥语义不变；2026-10-10 实证：participant 语境锁组织侧活动行塌缩为 0 行 → 报名链路全量 not_found，psql 同事务普通 SELECT 可见 / FOR UPDATE 零行对照复现）。项目级谓词矩阵与语境切换规则属项目设计文档。
 
 ## 3. 换栈映射判据
 

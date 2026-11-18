@@ -1,6 +1,6 @@
 ---
 status: active
-version: v4  # 2026-09-01 增 §4 桥 promise 落定与原生资源生命周期 / 补 §6 交互与布局形态 / §8 换栈表扩；v3 2026-08-30 增 §7
+last_updated: 2026-09-01
 ---
 
 # 栈适配层：React Native + iOS

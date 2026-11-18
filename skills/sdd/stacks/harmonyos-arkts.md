@@ -1,6 +1,6 @@
 ---
 status: active
-version: v3  # 2026-09-01 增 §5 键盘布局条 / §7 控件封装形态 / §6 换栈表扩；v2 2026-08-30 增 §5
+last_updated: 2026-09-01
 ---
 
 # 栈适配层：HarmonyOS + ArkTS

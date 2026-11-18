@@ -1,6 +1,6 @@
 ---
 status: active
-version: v4  # 2026-07-30
+last_updated: 2026-07-30
 ---
 
 # 设计哲学（模块内部设计准则）

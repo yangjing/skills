@@ -1,6 +1,6 @@
 ---
 status: active
-version: v1  # 2026-07-30
+last_updated: 2026-07-30
 ---
 
 # 栈适配层：React 19 + TanStack Router/Query + Ant Design 6 + Vite

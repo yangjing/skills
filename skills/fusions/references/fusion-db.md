@@ -235,8 +235,9 @@ pub async fn create_with_tx(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, data
 3. **传递 typed context**: 每个请求或后台任务使用 `mm.with_ctx(ctx)` 设置当前 `AppContext`
 4. **事务优先闭包式**: 使用 `mm.transaction()` / `mm.read_transaction()` 自动管理提交/回滚，支持 SAVEPOINT 嵌套
 5. **手动事务守规则**: 需要手动事务时，严格遵守 [DbxPostgres 手动事务](#dbxpostgres-手动事务) 规则
-6. **作用域过滤**: v0.3 已无 `with_filter_interceptor`；owner / scope 过滤靠 `db_session_vars()` 注入的 RLS GUC，或 repo SQL 里的显式条件
-7. **连接池**: 合理配置 `max_connections` 和 `idle_timeout`
+6. **作用域过滤**: 框架不提供 `with_filter_interceptor`；owner / scope 过滤靠 `db_session_vars()` 注入的 RLS GUC，或 repo SQL 里的显式条件
+7. **连接池**: 合理配置 `max_connections` 和 `idle_timeout`；`acquire_timeout` MUST 显著小于请求超时（池耗尽快速失败而非挂到请求超时被取消——取消污染的入口）
+8. **嵌套 acquire 禁令（convoy 自死锁）**: 持有事务期间 MUST NOT 再从池取第二条连接——包括直接开第二个事务、事务内裸 `dbx.db()` 查询、以及**内部自开短事务的 helper**（审计留痕 / 租户查找 / 通知推送等；`tokio::spawn` 旁路任务例外——不阻塞父事务故不成环）。两种正确形态按语境等价性取舍：**语境等价**（调用方事务的 RLS 语境满足 helper 查询面）→ **执行器形态** helper 收 `&mut PgConnection` 留在同一事务（b022 读路径判例）；**语境真不同**（如 `login` 语境跨域读 + 本人 `participant` 语境写）→ **串行三段**：宽容语境单事务把读取一次批齐（JOIN / EXISTS 并入同一查询）→ 重计算（argon2 verify 等 ~100ms 级）放事务外 → 专用语境再开写事务（b027 `remove_email_credential` 判例）。机理 / 池参数定档 / 回归护栏真相源（baoming 主仓）= `docs/designs/db-pool-concurrency-discipline.md`；SKILL.md Gotchas 同条目有机理速览
 
 ## Examples from Codebase
 

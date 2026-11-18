@@ -298,6 +298,26 @@ app.add_config_source(File::from_str(DEFAULT_CONFIG, FileFormat::Toml));
 // MYAPP__DATABASE__URL=postgres://...
 ```
 
+### 默认文件发现链（`load_config`）
+
+`app.add_config_source` programmatic sources are resolved by `load_config_with` as the
+**topmost** layer. Under them, the automatic chain resolves in order (later wins):
+built-in `default.toml` → `app.{toml,yaml,yml}` at `<CARGO_MANIFEST_DIR>/resources/`
+（first existing; cwd `./app.{toml,yaml,yml}` as the second lookup location）→
+`app-<FUSION__PROFILES__ACTIVE>.{toml,...}`（same two-location lookup）→
+`FUSION_CONFIG_FILE` env path → `FUSION__*` env overrides（highest of the automatic
+chain）。So precedence = programmatic > env > env-file > profile > cwd file > manifest
+file > built-in defaults.
+
+The manifest dir is **baked in at compile time** — the bin crate MUST call
+`fusions::common::runtime::init_compiled_manifest_dir(env!("CARGO_MANIFEST_DIR"))` as the
+very first statement of `main`（before the tokio runtime; it writes process env, so it is
+single-thread-only）。Deployment implication: when a release binary runs outside the
+source tree under a dedicated service user, the baked `/home/<dev>/...` path may be
+unreadable（home dirs are typically 0750）——config then silently falls back to defaults.
+Ship a copy of `resources/app.toml` next to the service `WorkingDirectory` so the cwd
+fallback finds it, and carry all secrets/deltas via env（`FUSION__*` overrides win anyway）。
+
 ### 获取配置
 
 ```rust

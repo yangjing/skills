@@ -1,33 +1,15 @@
 # fusion-sql
 
 SQL 层：`ModelManager<C>` 类型化上下文、`Dbx` 连接/事务封装、`SqlError`。
-**不是 ORM** —— v0.3 起没有查询构造器、没有实体宏、没有 BMC，SQL 由应用侧用 sqlx 写。
+**不是 ORM** —— 没有查询构造器、没有实体宏、没有 BMC，SQL 由应用侧用 sqlx 写。
 
-## ⚠️ v0.3 破坏性变更（从 v0.2 迁移必读）
+## ⚠️ 客户端 ORDER BY 无框架校验
 
-crate 改名，且整个 sea-query 栈被删除：
+框架对客户端 `ORDER BY` 不做任何校验 —— 凡是把客户端字符串拼进 `ORDER BY` 的
+地方，应用 MUST 自己维护列白名单（sqlx 不能 `bind` 标识符），否则就是 ORDER BY
+注入 / schema 探测面。
 
-| v0.2                                  | v0.3                                        |
-| ------------------------------------- | ------------------------------------------- |
-| crate `fusionsql`                     | crate `fusion-sql`（`use fusion_sql::…`）   |
-| crate `fusionsql-core`                | crate `fusion-sql-core`                     |
-| crate `fusionsql-macros`              | **已删除**（无替代）                        |
-| `fusionsql::sea_query` re-export      | **已删除**（sea-query / sea-query-binder / pgvector 依赖整体移除） |
-| `#[derive(Fields)]` / `#[fusionsql(table = …)]` | **已删除** → 用 `#[derive(sqlx::FromRow)]` |
-| `#[derive(FilterNodes)]` / `OpVal*` / `FilterGroups` | **已删除** → 应用侧手写 `WHERE` + `bind` |
-| `#[derive(SeaFieldValue)]` / `SeaFields` / `HasSeaFields` / `FieldMask` | **已删除** |
-| `DbBmc` / `BmcConfig` / `fusionsql::base::*` CRUD / `generate_pg_bmc_*!` | **已删除** → repo 函数直接持 `DbxPostgres` |
-| `fusionsql::page::{Page, Paged, PageResult, OrderBys}` | **已删除** → 分页 DTO 由应用 / proto 契约定义 |
-| `mm.with_filter_interceptor(…)`       | **已删除** → scope 过滤靠 RLS session vars 或显式 SQL 条件 |
-| `SqlError::{IntoSeaError, SeaQueryError}` | **已删除**                              |
-| `fusion-common` 的 `SensitiveString` impl `sea_query::Value` / `Nullable` | **已删除** |
-| `fusion-core` feature `fusionsql`     | **已删除**（此前已无用）                    |
-
-`fusions::sql`（aggregate 的 `db` feature）仍是这一层的入口，现指向 `fusion-sql`。
-
-**随之消失的安全默认**：v0.2 里客户端 `order_bys` 由 BMC 按实体列集合自动校验。
-v0.3 没有任何框架层校验 —— 凡是把客户端字符串拼进 `ORDER BY` 的地方，应用 MUST
-自己维护列白名单（sqlx 不能 `bind` 标识符），否则就是 ORDER BY 注入 / schema 探测面。
+`fusions::sql`（aggregate 的 `db` feature）是这一层的入口，指向 `fusion-sql`。
 
 ## 依赖关系
 

@@ -16,7 +16,7 @@ PEP 723 自包含脚本：依赖声明内嵌在上方 `# /// script` 块中，�
     C2  Agent 执行协议缺段        SDD sdd-overview §3.3
     C3  BCP 14 关键词小写         SDD 各分册头部「规范语言」
     C4  .overlay.md 命名违规      SDD sdd-overview §2.1
-    C5  文档头缺 Status / Version SDD SPECIFICATION §4.1（文档控制字段）
+    C5  文档头缺 Status / LastUpdated    SDD SPECIFICATION §4.1（文档控制字段）
 
 用法：
 
@@ -130,8 +130,8 @@ RE_UPPER_BCP14 = re.compile(r"(?<![A-Za-z])(MUST NOT|MUST|SHOULD NOT|SHOULD|MAY|
 # 新鲜度字段的三种 casing（last_updated / last-updated / lastUpdated / LastUpdated）都要认——
 # 只认其中一种会把用 YAML frontmatter 的整个文档树误报成缺字段。
 RE_STATUS = re.compile(r"(^|\W)(Status|status)\**\s*[:：]")
-RE_VERSION = re.compile(
-    r"(^|\W)(Version|version|Last[_-]?Updated|last[_-]?updated|lastUpdated)\**\s*[:：]"
+RE_LAST_UPDATED = re.compile(
+    r"(^|\W)(Last[_-]?Updated|last[_-]?updated|lastUpdated)\**\s*[:：]"
 )
 
 
@@ -289,8 +289,8 @@ def check_c5(path: str, text: str) -> list[Finding]:
     missing = []
     if not RE_STATUS.search(head):
         missing.append("Status")
-    if not RE_VERSION.search(head):
-        missing.append("Version / LastUpdated")
+    if not RE_LAST_UPDATED.search(head):
+        missing.append("LastUpdated")
     if missing:
         return [Finding(
             "C5", path, 1, (text.splitlines() or [""])[0][:80],
@@ -441,8 +441,11 @@ def self_test(quiet: bool = False) -> int:
     expect(not check_c3("t.md", "MUST 用 X\nmustache 模板\n"), "C3 误报 mustache（词边界失效）")
 
     # C5
-    expect(not check_c5("t.md", "# T\n> **Status**: active · **Version**: v1\n"), "C5 误报合规头部")
+    expect(not check_c5("t.md", "# T\n> **Status**: active · **LastUpdated**: 2026-10-14\n"), "C5 误报合规头部")
     expect(len(check_c5("t.md", "# T\n正文\n")) == 1, "C5 未检出缺失控制字段")
+    # 版本号不是控制字段（历史归 git）——version 不能顶替新鲜度字段。
+    expect(len(check_c5("t.md", "---\nstatus: active\nversion: v1\n---\n")) == 1,
+           "C5 把 version 当新鲜度字段")
     expect(not check_c5("t.md", "---\nstatus: active\nlast-updated: 2026-01-01\n---\n"),
            "C5 未接受 YAML frontmatter 形态")
     # 下划线 casing 曾漏认，导致整个 YAML frontmatter 文档树被误报。

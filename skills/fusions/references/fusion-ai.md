@@ -44,7 +44,7 @@ use fusions::ai::graph_flow::{
 use fusions::ai::graph_flow::PostgresSessionStorage;
 ```
 
-> **实现本 crate 的 trait 时，依赖也要从这里取**（v0.3 新增 re-export）：
+> **实现本 crate 的 trait 时，依赖也要从这里取**（crate re-export）：
 > `pub use {async_trait::async_trait, bytes, futures};`。`SttUplink::Audio(Bytes)`、
 > `SttUplinkStream`、`#[async_trait]` 都出现在公共 API 上，下游自带一份不同版本的
 > `bytes` / `async-trait` 会产出 `expected Bytes, found Bytes` 这种读起来像编译器
@@ -280,17 +280,17 @@ let provider: Arc<dyn LlmChatProvider> =
 ```
 
 `AiUsageCtx` 关键字段：`tenant_id`、`dimensions: BTreeMap<String, String>`
-（业务维度快照，空 map = 租户级调用；v0.3 前身是单一的 `facility_id`）、
+（业务维度快照，空 map = 租户级调用）、
 `feature_code`、`matched_scope`、`provider` / `model`、`credential_id`
 （**仅内部成本归集，永不进租户读面投影**）、`session_id`、`request_kind`、
 `resolved_region`。
 
-> v0.3 breaking：`AiUsageEvent` 现在是 `#[non_exhaustive]`，**MUST 用两个构造函数**，
+> `AiUsageEvent` 是 `#[non_exhaustive]`，**MUST 用两个构造函数**，
 > 不能写结构体字面量 —— 每加一个模态否则都是下游破坏性变更。
 >
 > | 模态 | 构造 | 说明 |
 > | ---- | ---- | ---- |
-> | chat | `AiUsageEvent::from_ctx_tokens(ctx, &usage, outcome, occurred_at, latency_ms)` | 旧名 `from_ctx_usage` 已删。改名是为了让 STT 路径不会误用它——那会静默丢掉音频时长 |
+> | chat | `AiUsageEvent::from_ctx_tokens(ctx, &usage, outcome, occurred_at, latency_ms)` | STT 路径 MUST NOT 误用本构造——那会静默丢掉音频时长 |
 > | STT  | `AiUsageEvent::from_ctx_audio(ctx, audio_duration_ms, outcome, occurred_at, latency_ms)` | token 三列记 0，表示「本模态不以 token 计量」；一次识别会话记**一行** |
 >
 > `resolved_region` 是**实际落地**的凭证区域（合规「数据存放地」清单的标注来源），
@@ -332,8 +332,8 @@ writer `JoinHandle`（通道关闭即排空退出）。
 ## Streaming STT（`speech_to_text` + `providers::dashscope`）
 
 面向**双向流 / 长连接**的实时识别（WebSocket / gRPC streaming），区别于
-openai_compatible 的批量文件转写 `TranscriptionModel`。v0.3 用 `FunAsrRealtime`
-（DashScope Fun-ASR）替换了已删除的 `paraformer` 模块。
+openai_compatible 的批量文件转写 `TranscriptionModel`。实时识别走
+`FunAsrRealtime`（DashScope Fun-ASR）。
 
 ```rust
 #[async_trait]
@@ -368,13 +368,13 @@ pub trait SpeechToText: Send + Sync {
 - **无 `#[non_exhaustive]` 是刻意的**（那会禁掉 `..base` 更新语法）。构造 SHOULD 写成
   `AudioStreamConfig { channels: 2, ..AudioStreamConfig::pcm_s16le_16k_mono_40ms() }`，
   否则每次字段增补都要改代码。默认构造还预置了 `language_hints = ["zh", "en"]`。
-- `hotwords` 在 v0.3 拆成两个正交字段：`vocabulary_ids`（**provider 侧已注册词表的 ID**，
+- `hotwords` 是两个正交字段：`vocabulary_ids`（**provider 侧已注册词表的 ID**，
   填词条本身不会生效）与 `context_items`（会话级上下文增强词，每条须含待识别原词）。
   条数 / 长度上限由 provider 定（Fun-ASR：≤5 条、每条 ≤400 字符），超限在**建连前**
   以 `ConfigInvalid` 拒绝 —— 静默裁剪会让上下文增强变成玄学。
 - `context_items` 会离开本进程送到 provider，MUST NOT 放真实姓名 / 床号全集。
 - `frame_duration_ms` 仅供自查审计：既不下发也不重新切帧，真实分帧取决于你往上行流推什么。
-- `AudioEncoding::as_provider_str` 已删除。`PcmF32Le` 与 `PcmS16Le`、`WebmOpus` 与
+- 不提供 `AudioEncoding::as_provider_str`。`PcmF32Le` 与 `PcmS16Le`、`WebmOpus` 与
   `Opus` **不可互换**，由各 provider 的可预检函数（`fun_asr::provider_audio_format`）
   fail-closed 拒绝，而不是静默直通产出「链路通但转写是噪声」。
 
@@ -452,7 +452,7 @@ MUST NOT `#[derive(Debug)]`（`tracing::debug!(?config)` 会把明文密钥落�
   真实生效；`None` 用 transport 默认。
 - 流式 SSE 解析对不合规 provider 分块（空 tool_call 等）跳过并 `debug!` 记录，
   不 panic 流任务。
-- `LlmProviderConfig::Qwen` v0.3 新增 `base_url_override: Option<String>`
+- `LlmProviderConfig::Qwen` 有 `base_url_override: Option<String>`
   （**结构体字面量必须补这个字段**）。它与 `DeepSeek { endpoint }` 性质不同：
   那些 vendor 本就支持自建 / 代理端点，endpoint 是凭证的一部分；dashscope 的端点由
   `region` 决定，而 `region` 又是驻留档的判据。所以本字段 MUST NOT 由凭证或租户配置

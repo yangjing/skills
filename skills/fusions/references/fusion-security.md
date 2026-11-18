@@ -31,8 +31,7 @@ use fusions::security::{SecurityError, SecurityResult};
 use fusions::core::security::SecurityUtils;
 use fusions::core::configuration::SecuritySetting;
 
-// Password hashing lives in fusion-security (moved out of
-// fusion-core::security::pwd in v0.3 — fusion-core is JWT/HMAC-only now).
+// Password hashing lives in fusion-security — fusion-core is JWT/HMAC-only.
 use fusions::security::pwd::{generate_pwd, verify_pwd, is_strong_password};
 
 // OAuth (feature: with-oauth)
@@ -124,10 +123,8 @@ expires_in  = 3600
 
 Argon2 + random 16-byte salt, executed on `spawn_blocking`. The persisted
 format is `#<version>#<argon2-encoded-hash>` (current `version = 1`).
-Moved out of `fusion-core::security::pwd` in v0.3 — import from
-`fusions::security::pwd`; `fusion-core` no longer depends on argon2.
-The old `fusion_core::security::Error::InvalidFormat` variant was renamed
-to `SecurityError::InvalidHashFormat` in the move.
+Import from `fusions::security::pwd`; `fusion-core` does not depend on
+argon2. Hash-format failures surface as `SecurityError::InvalidHashFormat`.
 
 ```rust
 use fusions::security::pwd::{generate_pwd, verify_pwd, is_strong_password};
@@ -152,6 +149,17 @@ treat `FailedToHashPassword` / `InvalidHashFormat` /
 `DataError::unauthorized` alongside `InvalidPassword`, while the other
 three pwd variants map to `DataError::server_error`; rely on explicit
 matches, not the default conversion, when the distinction matters.
+
+**Out-of-process hash generation** (ops tooling / SQL-seeded accounts): the
+hard contract is the `#<version>#` prefix plus any PHC string
+`argon2::PasswordHash` can parse — argon2 parameters live in the PHC string
+itself, so a generator with different m/t/p still verifies. Pin the same
+argon2 crate version and assert the emitted PHC header
+(`$argon2id$v=19$m=19456,t=2,p=1$`, the crate defaults `generate_pwd` uses)
+anyway: it keeps hashes uniform and turns an algorithm/version change in
+`fusion-security` into a loud generator failure instead of login-time
+surprises. Mirror `is_strong_password` in the generator (reject before
+hashing), never after.
 
 ## OAuth2 (feature `oauth`)
 

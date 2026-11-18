@@ -58,7 +58,8 @@ ls src/lib.rs src/main.rs 2>/dev/null
 ### code-review-checklist（lib / bin 都审）
 正确性、错误处理、所有权与生命周期、性能、并发安全、代码组织、Rust 惯用法、
 unsafe 安全性、边界情况、测试覆盖、文档、安全、依赖、类型设计、异步模式、
-可观测性。共 16 类，详见 [references/code-review-checklist.md](references/code-review-checklist.md)。
+可观测性、宏设计（含宏的 crate 适用）。共 17 类，详见
+[references/code-review-checklist.md](references/code-review-checklist.md)。
 
 ### api-ergonomics-checklist（仅 lib）
 站在**下游消费者**视角：happy-path 摩擦、下游编译器输出、类型系统拦不住的运行时
@@ -88,7 +89,7 @@ unsafe 安全性、边界情况、测试覆盖、文档、安全、依赖、类�
 > Medium = 摩擦 / 可维护性；Low = 风格 / 微优化。
 
 ### 3. 维度速评（仅 lib crate）
-对 api-ergonomics 的 7 个维度各给一个速评（✓ 良好 / ~ 有保留 / ✗ 有问题），
+对 api-ergonomics 的 8 个维度各给一个速评（✓ 良好 / ~ 有保留 / ✗ 有问题），
 让 API 健康度一目了然：
 
 | 维度 | 速评 |
@@ -116,6 +117,6 @@ unsafe 安全性、边界情况、测试覆盖、文档、安全、依赖、类�
 
 ## Related Skills
 
-- `rust-best-practices` skill：通用 Rust 惯用法参考（写代码时；按 skill 名发现加载，未必与本文同处安装）
+- `rust-best-practices` skill：通用 Rust 惯用法参考（写代码时；按 skill 名发现加载，未必与本文同处安装）。与其分歧时，**审查口径以本清单为准**
 - [`fusions`](../fusions/SKILL.md)：Fusion 栈核心库模式（fusions 技术栈项目以其为准）
 - [`axum-tower`](../axum-tower/SKILL.md)：axum + tower Web 代码模式
